@@ -114,6 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const handleResize = () => {
@@ -123,6 +124,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const allNavItems: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: number }[] = [
@@ -208,6 +220,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              
+              {/* Connectivity Status (Mobile Drawer) */}
+              <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                {isOnline ? (
+                  <>
+                    <div className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-emerald-700">متصل بالسحابة (Online)</p>
+                      <p className="text-[9px] text-slate-400 font-bold">البيانات متزامنة وآمنة تلقائياً</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-amber-700">يعمل بدون اتصال (Offline)</p>
+                      <p className="text-[9px] text-amber-600 font-bold">يتم حفظ العمليات محلياً ومزامنتها فور عودة الاتصال</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {navItems.map(item => (
                   <NavButton 
@@ -260,6 +300,37 @@ export const Navbar: React.FC<NavbarProps> = ({
               <h1 className="text-base font-black text-slate-900 leading-tight">سوبر ماركت برو</h1>
               <p className="text-[9px] text-emerald-600 font-black uppercase tracking-wider mt-0.5">النظام المحاسبي</p>
             </motion.div>
+          )}
+        </div>
+
+        {/* Connectivity Status (Desktop Sidebar) */}
+        <div className={`px-6 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} title={isCollapsed ? (isOnline ? "متصل بالسحابة" : "يعمل بدون اتصال - الحفظ محلي نشط") : undefined}>
+          {isOnline ? (
+            <>
+              <div className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </div>
+              {!isCollapsed && (
+                <div className="text-right">
+                  <p className="text-[11px] font-black text-emerald-700">متصل بالسحابة (Online)</p>
+                  <p className="text-[9px] text-slate-400 font-bold">البيانات متزامنة وآمنة</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </div>
+              {!isCollapsed && (
+                <div className="text-right">
+                  <p className="text-[11px] font-black text-amber-700">يعمل بدون اتصال (Offline)</p>
+                  <p className="text-[9px] text-amber-600 font-bold">يتم الحفظ محلياً تلقائياً</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 

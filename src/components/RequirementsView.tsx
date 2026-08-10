@@ -142,6 +142,98 @@ export const RequirementsView: React.FC<RequirementsViewProps> = ({ onStartUsing
 
       </div>
 
+      {/* Offline Safety & Business Rules Section */}
+      <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 space-y-6">
+        <div className="border-b border-slate-100 pb-4">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 text-[10px] font-black border border-amber-200 mb-2">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            قواعد الأمان والموثوقية (Offline Safety & Business Rules)
+          </div>
+          <h3 className="text-lg font-black text-slate-900">سياسة تنظيم العمليات عند انقطاع الإنترنت</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            لضمان سلامة البيانات المحاسبية وحمايتها من التضارب، يتبع النظام قواعد عمل صارمة تفصل بين العمليات المحلية الآمنة والعمليات السحابية الحية.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Offline Allowed */}
+          <div className="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                ✓
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-emerald-900">عمليات مسموح بها دون اتصال (Offline Allowed)</h4>
+                <p className="text-[10px] text-emerald-700 font-medium">تعمل بالكامل على الذاكرة المحلية والـ Local Cache</p>
+              </div>
+            </div>
+
+            <ul className="space-y-3 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>البحث عن المنتجات وقراءة الباركود:</strong> يتم استخدام قاعدة البيانات المحلية المخزنة مسبقاً على الجهاز فورياً.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>إصدار الفواتير وحساب الحسابات:</strong> تُحسب قيم الفاتورة، الضرائب، والمتبقي بالكامل محلياً وبدقة متناهية.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>تطبيق الخصومات المعتمدة:</strong> يُسمح بتطبيق الخصومات ضمن النطاق والصلاحيات المخزنة للكاشير دون الحاجة للتحقق السحابي.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>تحديث المخزون المحلي:</strong> يتم خصم الكميات المباعة من رصيد السلعة محلياً لضمان عدم تكرار البيع بأكثر من المتاح.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>إدارة الوردية الحالية:</strong> يمكن فتح وإغلاق الوردية الحالية للكاشير وضبط درج النقدية بأمان تام.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>طباعة الإيصال الحراري:</strong> يتم توليد كود الطباعة وإصدار الإيصال محلياً من المتصفح للطابعة الموصلة.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Online Required */}
+          <div className="bg-amber-50/40 border border-amber-100 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                ⚠
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-900">عمليات تتطلب اتصالاً بالإنترنت (Online Required)</h4>
+                <p className="text-[10px] text-amber-700 font-medium">يتم تعليقها مؤقتاً لحماية أمان وتكامل الحسابات</p>
+              </div>
+            </div>
+
+            <ul className="space-y-3 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>الاستشارات والذكاء الاصطناعي (Gemini AI):</strong> لا يمكن الوصول للمستشار المالي أو الاستشارات الذكية لعدم إمكانية الاتصال بـ API السحابي.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>تصدير واستيراد قواعد البيانات:</strong> يُمنع رفع أو تنزيل ملفات النسخ الاحتياطي السحابي الكامل لتجنب تدمير البيانات المعلقة.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>إضافة موظفين ومستخدمين جدد:</strong> لا يمكن تسجيل مستخدم جديد أو تعديل كلمات المرور لسرية المصادقة مع خوادم Firebase Auth.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>مزامنة الفواتير بين أجهزة متعددة:</strong> تعمل الأجهزة بشكل مستقل، وتتم المزامنة التلقائية والدمج الذكي فور عودة الاتصال.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-500 shrink-0 font-extrabold">✦</span>
+                <span><strong>تحديث البيانات الأساسية للموردين والمشتريات:</strong> لتجنب الازدواجية في الحسابات الدائنة والمدينة الكبرى الموزعة.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Technical Architecture & AI Section */}
       <div className="bg-slate-900 text-white rounded-2xl p-8 shadow-xl border border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>

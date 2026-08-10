@@ -22,14 +22,16 @@ import {
   Sparkles,
   Keyboard,
   QrCode,
-  AlertTriangle
+  AlertTriangle,
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 
 interface PosViewProps {
   products: Product[];
   customers: Customer[];
   onCompleteSale: (invoice: Invoice) => void;
-  updateProductStock: (productId: string, qtyChange: number) => void;
+  updateProductStock: (productId: string, qtyChange: number, operationId?: string) => void;
   currentUser: User;
   activeShift: Shift | undefined;
   settings?: SystemSettings;
@@ -56,6 +58,19 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showCheckoutModal, setShowCheckoutModal] = useState<boolean>(false);
   const [showHeldModal, setShowHeldModal] = useState<boolean>(false);
   const [lastInvoice, setLastInvoice] = useState<Invoice | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [showOfflineRulesModal, setShowOfflineRulesModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Advanced Barcode States
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -559,8 +574,12 @@ export const PosView: React.FC<PosViewProps> = ({
       return;
     }
 
+    const newInvoiceId = 'inv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+    const invoiceOpId = `op-inv-${newInvoiceId}`;
+
     const newInvoice: Invoice = {
-      id: 'inv-' + Date.now(),
+      id: newInvoiceId,
+      operationId: invoiceOpId,
       invoiceNumber: 'INV-' + Math.floor(1000 + Math.random() * 9000),
       date: new Date().toISOString().replace('T', ' ').substring(0, 16),
       items: cart.map(i => ({
@@ -579,11 +598,12 @@ export const PosView: React.FC<PosViewProps> = ({
       customerName: customers.find(c => c.id === selectedCustomerId)?.name,
       cashierName: currentUser.name,
       paidAmount: paymentMethod === 'cash' ? numericPaid : finalTotal,
-      changeAmount: paymentMethod === 'cash' ? changeAmount : 0
+      changeAmount: paymentMethod === 'cash' ? changeAmount : 0,
+      isOffline: !isOnline
     };
 
     cart.forEach(item => {
-      updateProductStock(item.product.id, -item.quantity);
+      updateProductStock(item.product.id, -item.quantity, `op-stock-${newInvoiceId}-${item.product.id}`);
     });
 
     onCompleteSale(newInvoice);
@@ -610,6 +630,27 @@ export const PosView: React.FC<PosViewProps> = ({
           {/* Left Column: Products Catalog (7 cols) */}
           <div className="lg:col-span-7 flex flex-col space-y-4">
             
+            {!isOnline && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm animate-fadeIn">
+                <div className="flex items-start gap-3 text-right">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-extrabold text-amber-800 text-xs">نظام البيع يعمل حالياً بدون اتصال بالإنترنت (Offline Mode)</h4>
+                    <p className="text-amber-700/95 mt-0.5 text-[11px] leading-relaxed font-semibold">
+                      يتم حفظ العمليات محلياً ومزامنتها تلقائياً مع السحابة فور عودة الاتصال.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOfflineRulesModal(true)}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black rounded-xl transition-all shadow-sm shrink-0 whitespace-nowrap self-end sm:self-center"
+                >
+                  عرض قواعد الأمان ℹ️
+                </button>
+              </div>
+            )}
+
             {/* Floating Scan Success Toast */}
             {scanSuccessToast && (
               <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl border animate-slideDown font-extrabold text-xs transition-all ${
@@ -1192,8 +1233,14 @@ export const PosView: React.FC<PosViewProps> = ({
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-black text-slate-900">تم حفظ وإكمال الفاتورة السحابية بنجاح!</h3>
-              <p className="text-[10px] text-slate-400 mt-0.5">رقم مرجع النظام: #{lastInvoice.id}</p>
+              <h3 className="text-base font-black text-slate-900">
+                {isOnline ? 'تم حفظ وإكمال الفاتورة السحابية بنجاح!' : 'تم حفظ الفاتورة محلياً بأمان!'}
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold">
+                {isOnline 
+                  ? `رقم مرجع النظام: #${lastInvoice.id}` 
+                  : `يتم الحفظ محلياً (سيتم المزامنة تلقائياً فور عودة الإنترنت) — مرجع: #${lastInvoice.id}`}
+              </p>
             </div>
 
             {/* Simulated 80mm Thermal Receipt Slip */}
@@ -1331,6 +1378,112 @@ export const PosView: React.FC<PosViewProps> = ({
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md shadow-emerald-950/10 transition-all text-center block"
             >
               بدء معاملة بيع جديدة 🛒
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showOfflineRulesModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-100 text-right animate-fadeIn space-y-6 max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200">
+                  <ShieldCheck className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">سياسات وقواعد الأمان لعدم الاتصال (Offline Safety)</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">ضوابط تشغيل نقطة البيع لضمان أمان العمليات والضرائب</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowOfflineRulesModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Offline Allowed */}
+              <div className="bg-emerald-50/40 border border-emerald-100/80 rounded-2xl p-5 space-y-3.5 text-right">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold">✓</div>
+                  <h4 className="text-xs font-black text-emerald-900">العمليات المسموح بها دون اتصال</h4>
+                </div>
+                <ul className="space-y-2.5 text-[11px] text-slate-600 font-semibold leading-relaxed">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500">•</span>
+                    <span>البحث عن المنتجات وقراءة الباركود فوراً</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500">•</span>
+                    <span>إضافة السلع، حساب الفاتورة، وتطبيق الضرائب والخصم</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500">•</span>
+                    <span>تسجيل الدفع وتخزين الفواتير محلياً بأمان تام</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500">•</span>
+                    <span>فتح وإغلاق الورديات وضبط عهدة الكاشير</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500">•</span>
+                    <span>طباعة الإيصالات الحرارية (80mm) مباشرة</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Online Required */}
+              <div className="bg-amber-50/40 border border-amber-100/80 rounded-2xl p-5 space-y-3.5 text-right">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-xs font-bold">⚠</div>
+                  <h4 className="text-xs font-black text-amber-900">عمليات معلقة تتطلب اتصالاً</h4>
+                </div>
+                <ul className="space-y-2.5 text-[11px] text-slate-600 font-semibold leading-relaxed">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-500">•</span>
+                    <span>استشارات المساعد والذكاء الاصطناعي (Gemini AI)</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-500">•</span>
+                    <span>تصدير واستيراد قواعد البيانات السحابية الكاملة</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-500">•</span>
+                    <span>إضافة مستخدمين أو موظفين جدد للنظام</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-500">•</span>
+                    <span>المزامنة والدمج الفوري بين أجهزة بيع متعددة</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-500">•</span>
+                    <span>تحديث المخزون وقائمة المنتجات على الخادم الرئيسي</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex items-start gap-3">
+              <Info className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
+              <div className="text-right">
+                <h5 className="font-extrabold text-slate-800 text-xs">ملاحظة محاسبية هامة:</h5>
+                <p className="text-[10.5px] text-slate-500 leading-relaxed font-bold mt-0.5">
+                  لا تقلق أبداً! بمجرد عودة الاتصال بشبكة الإنترنت، يقوم النظام بمزامنة كافة المعاملات والورديات المعلقة تلقائياً في الخلفية مع دمج التعديلات وتفادي ازدواجية الأرقام المرجعية للفواتير لضمان مطابقة الدورة المحاسبية 100%.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowOfflineRulesModal(false)}
+              className="w-full py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs transition-colors"
+            >
+              مفهوم وموافق، إغلاق النافذة
             </button>
           </div>
         </div>

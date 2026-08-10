@@ -70,8 +70,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
     const supplier = suppliers.find(s => s.id === supplierId);
 
+    const purchaseId = 'pur-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
     const newPurchase: PurchaseInvoice = {
-      id: 'pur-' + Date.now(),
+      id: purchaseId,
+      operationId: `op-pur-${purchaseId}`,
       purchaseNumber: 'PUR-' + Math.floor(1000 + Math.random() * 9000),
       supplierId,
       supplierName: supplier ? supplier.name : 'مورد عام',

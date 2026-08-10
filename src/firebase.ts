@@ -1,5 +1,12 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  doc, 
+  getDoc, 
+  setDoc 
+} from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -13,7 +20,14 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, "ai-studio-dea18671-a3ef-4da0-b6bb-cc16f1aba787");
+
+// Initialize Firestore with Offline Persistence (persistent local cache for offline-first support)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, "ai-studio-dea18671-a3ef-4da0-b6bb-cc16f1aba787");
+
 export const auth = getAuth(app);
 
 const googleProvider = new GoogleAuthProvider();

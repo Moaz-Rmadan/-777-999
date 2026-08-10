@@ -41,6 +41,8 @@ export interface Invoice {
   paidAmount: number;
   changeAmount: number;
   status?: 'active' | 'voided';
+  isOffline?: boolean;
+  operationId?: string;
 }
 
 export interface PurchaseItem {
@@ -60,6 +62,7 @@ export interface PurchaseInvoice {
   items: PurchaseItem[];
   total: number;
   status: 'paid' | 'pending' | 'voided';
+  operationId?: string;
 }
 
 export interface SupplierTransaction {
@@ -71,6 +74,7 @@ export interface SupplierTransaction {
   referenceId: string; // purchaseId or paymentId
   description: string;
   balanceAfter: number;
+  operationId?: string;
 }
 
 export interface Supplier {
@@ -90,6 +94,7 @@ export interface CustomerTransaction {
   referenceId: string; // invoiceId or collectionId
   description: string;
   balanceAfter: number;
+  operationId?: string;
 }
 
 export interface Customer {
@@ -108,6 +113,7 @@ export interface Expense {
   date: string;
   notes?: string;
   status?: 'active' | 'voided';
+  operationId?: string;
 }
 
 export interface CashDrawerShift {
@@ -223,6 +229,18 @@ export interface JournalEntry {
   debit: number;
   credit: number;
   account: string;
+  referenceId: string;
+  operationId?: string;
+}
+
+export interface InventoryMovement {
+  id: string;
+  operationId: string;
+  productId: string;
+  productName: string;
+  type: 'sale' | 'purchase' | 'adjustment' | 'return';
+  quantity: number;
+  date: string;
   referenceId: string;
 }
 

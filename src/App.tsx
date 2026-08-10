@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings } from './types';
+import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement } from './types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_SUPPLIERS, 
@@ -30,6 +30,29 @@ import InventoryReportsView from './components/InventoryReportsView';
 import { AccountingView } from './components/AccountingView';
 import { SettingsView } from './components/SettingsView';
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
+
+function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {
+  const mergedMap = new Map<string, T>();
+  
+  // 1. Add remote items first as baseline
+  remoteList.forEach(item => {
+    const key = item.operationId || item.id;
+    mergedMap.set(key, item);
+  });
+  
+  // 2. Add local items. If an item already exists under that key, merge them, keeping remote as baseline
+  localList.forEach(item => {
+    const key = item.operationId || item.id;
+    const existing = mergedMap.get(key);
+    if (!existing) {
+      mergedMap.set(key, item);
+    } else {
+      mergedMap.set(key, { ...item, ...existing });
+    }
+  });
+  
+  return Array.from(mergedMap.values());
+}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -199,6 +222,18 @@ export default function App() {
     }
   }, [journalEntries, isFirebaseLoading]);
 
+  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(() => {
+    const saved = localStorage.getItem('sm_inventory_movements');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sm_inventory_movements', JSON.stringify(inventoryMovements));
+    if (!isFirebaseLoading) {
+      saveToFirebase('sm_inventory_movements', inventoryMovements);
+    }
+  }, [inventoryMovements, isFirebaseLoading]);
+
   useEffect(() => {
     let unsubscribeAuth: (() => void) | null = null;
 
@@ -217,23 +252,25 @@ export default function App() {
         const st = await loadFromFirebase('pos_supplier_transactions');
         const ct = await loadFromFirebase('pos_customer_transactions');
         const je = await loadFromFirebase('sm_journal_entries');
+        const mov = await loadFromFirebase('sm_inventory_movements');
         const sett = await loadFromFirebase('sm_settings');
 
         let currentUsersList = u || INITIAL_USERS;
 
         if (u !== null) setUsers(u); else { await saveToFirebase('sm_users', INITIAL_USERS); }
-        if (p !== null) setProducts(p); else { await saveToFirebase('sm_products', INITIAL_PRODUCTS); }
-        if (i !== null) setInvoices(i); else { await saveToFirebase('sm_invoices', INITIAL_INVOICES); }
-        if (pu !== null) setPurchases(pu); else { await saveToFirebase('sm_purchases', INITIAL_PURCHASES); }
-        if (s !== null) setSuppliers(s); else { await saveToFirebase('sm_suppliers', INITIAL_SUPPLIERS); }
-        if (c !== null) setCustomers(c); else { await saveToFirebase('sm_customers', INITIAL_CUSTOMERS); }
-        if (e !== null) setExpenses(e); else { await saveToFirebase('sm_expenses', INITIAL_EXPENSES); }
+        if (p !== null) setProducts(prev => mergeUniqueById(prev, p)); else { await saveToFirebase('sm_products', INITIAL_PRODUCTS); }
+        if (i !== null) setInvoices(prev => mergeUniqueById(prev, i)); else { await saveToFirebase('sm_invoices', INITIAL_INVOICES); }
+        if (pu !== null) setPurchases(prev => mergeUniqueById(prev, pu)); else { await saveToFirebase('sm_purchases', INITIAL_PURCHASES); }
+        if (s !== null) setSuppliers(prev => mergeUniqueById(prev, s)); else { await saveToFirebase('sm_suppliers', INITIAL_SUPPLIERS); }
+        if (c !== null) setCustomers(prev => mergeUniqueById(prev, c)); else { await saveToFirebase('sm_customers', INITIAL_CUSTOMERS); }
+        if (e !== null) setExpenses(prev => mergeUniqueById(prev, e)); else { await saveToFirebase('sm_expenses', INITIAL_EXPENSES); }
         if (pm !== null) setPermissionMatrix(pm); else { await saveToFirebase('pos_permission_matrix', DEFAULT_ROLE_PERMISSIONS); }
-        if (sh !== null) setShifts(sh); else { await saveToFirebase('sm_shifts', []); }
-        if (al !== null) setAuditLogs(al); else { await saveToFirebase('pos_audit_logs', []); }
-        if (st !== null) setSupplierTransactions(st); else { await saveToFirebase('pos_supplier_transactions', []); }
-        if (ct !== null) setCustomerTransactions(ct); else { await saveToFirebase('pos_customer_transactions', []); }
-        if (je !== null) setJournalEntries(je); else { await saveToFirebase('sm_journal_entries', []); }
+        if (sh !== null) setShifts(prev => mergeUniqueById(prev, sh)); else { await saveToFirebase('sm_shifts', []); }
+        if (al !== null) setAuditLogs(prev => mergeUniqueById(prev, al)); else { await saveToFirebase('pos_audit_logs', []); }
+        if (st !== null) setSupplierTransactions(prev => mergeUniqueById(prev, st)); else { await saveToFirebase('pos_supplier_transactions', []); }
+        if (ct !== null) setCustomerTransactions(prev => mergeUniqueById(prev, ct)); else { await saveToFirebase('pos_customer_transactions', []); }
+        if (je !== null) setJournalEntries(prev => mergeUniqueById(prev, je)); else { await saveToFirebase('sm_journal_entries', []); }
+        if (mov !== null) setInventoryMovements(prev => mergeUniqueById(prev, mov)); else { await saveToFirebase('sm_inventory_movements', []); }
         if (sett !== null) setSettings(sett); else { await saveToFirebase('sm_settings', DEFAULT_SETTINGS); }
 
         unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
@@ -279,19 +316,29 @@ export default function App() {
     debit: number,
     credit: number,
     account: string,
-    referenceId: string
+    referenceId: string,
+    operationId?: string
   ) => {
-    const entry: JournalEntry = {
-      id: 'je-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-      date: new Date().toISOString(),
-      type,
-      description,
-      debit,
-      credit,
-      account,
-      referenceId
-    };
-    setJournalEntries(prev => [entry, ...prev]);
+    const opId = operationId || `op-je-${referenceId}-${account}-${debit > 0 ? 'debit' : 'credit'}`;
+    
+    let alreadyExists = false;
+    setJournalEntries(prev => {
+      alreadyExists = prev.some(j => j.operationId === opId);
+      if (alreadyExists) return prev;
+
+      const entry: JournalEntry = {
+        id: 'je-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        date: new Date().toISOString(),
+        type,
+        description,
+        debit,
+        credit,
+        account,
+        referenceId,
+        operationId: opId
+      };
+      return [entry, ...prev];
+    });
   };
 
   useEffect(() => {
@@ -321,19 +368,29 @@ export default function App() {
     amount: number,
     referenceId: string,
     description: string,
-    newBalance: number
+    newBalance: number,
+    operationId?: string
   ) => {
-    const transaction: CustomerTransaction = {
-      id: 'ct-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-      customerId,
-      type,
-      amount,
-      date: new Date().toISOString(),
-      referenceId,
-      description,
-      balanceAfter: newBalance
-    };
-    setCustomerTransactions(prev => [transaction, ...prev]);
+    const opId = operationId || `op-ct-${referenceId}-${type}`;
+    
+    let alreadyExists = false;
+    setCustomerTransactions(prev => {
+      alreadyExists = prev.some(t => t.operationId === opId);
+      if (alreadyExists) return prev;
+
+      const transaction: CustomerTransaction = {
+        id: 'ct-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        customerId,
+        type,
+        amount,
+        date: new Date().toISOString(),
+        referenceId,
+        description,
+        balanceAfter: newBalance,
+        operationId: opId
+      };
+      return [transaction, ...prev];
+    });
   };
 
   const logSupplierTransaction = (
@@ -342,19 +399,29 @@ export default function App() {
     amount: number,
     referenceId: string,
     description: string,
-    newBalance: number
+    newBalance: number,
+    operationId?: string
   ) => {
-    const transaction: SupplierTransaction = {
-      id: 'st-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-      supplierId,
-      type,
-      amount,
-      date: new Date().toISOString(),
-      referenceId,
-      description,
-      balanceAfter: newBalance
-    };
-    setSupplierTransactions(prev => [transaction, ...prev]);
+    const opId = operationId || `op-st-${referenceId}-${type}`;
+    
+    let alreadyExists = false;
+    setSupplierTransactions(prev => {
+      alreadyExists = prev.some(t => t.operationId === opId);
+      if (alreadyExists) return prev;
+
+      const transaction: SupplierTransaction = {
+        id: 'st-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        supplierId,
+        type,
+        amount,
+        date: new Date().toISOString(),
+        referenceId,
+        description,
+        balanceAfter: newBalance,
+        operationId: opId
+      };
+      return [transaction, ...prev];
+    });
   };
 
   const logAction = (
@@ -523,7 +590,34 @@ export default function App() {
     }
   };
 
-  const updateProductStock = (productId: string, qtyChange: number) => {
+  const updateProductStock = (productId: string, qtyChange: number, operationId?: string) => {
+    if (operationId) {
+      // Check if this stock operation was already applied to prevent duplication
+      let alreadyApplied = false;
+      setInventoryMovements(prev => {
+        alreadyApplied = prev.some(m => m.operationId === operationId);
+        if (alreadyApplied) return prev;
+
+        const product = products.find(p => p.id === productId);
+        const newMovement: InventoryMovement = {
+          id: 'mov-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          operationId,
+          productId,
+          productName: product?.name || 'صنف مجهول',
+          type: qtyChange > 0 ? (qtyChange > 100 ? 'purchase' : 'adjustment') : 'sale',
+          quantity: qtyChange,
+          date: new Date().toISOString(),
+          referenceId: operationId.split('-')[2] || ''
+        };
+        return [newMovement, ...prev];
+      });
+
+      if (alreadyApplied) {
+        console.log(`Inventory movement ${operationId} already applied. Skipping stock modification.`);
+        return;
+      }
+    }
+
     setProducts(prev => prev.map(p => {
       if (p.id === productId) {
         return { ...p, stock: Math.max(0, p.stock + qtyChange) };
@@ -533,27 +627,40 @@ export default function App() {
   };
 
   const handleCompleteSale = (invoice: Invoice) => {
-    setInvoices(prev => [invoice, ...prev]);
+    let invoiceExists = false;
+    setInvoices(prev => {
+      invoiceExists = prev.some(inv => inv.id === invoice.id || (invoice.operationId && inv.operationId === invoice.operationId));
+      if (invoiceExists) return prev;
+      return [invoice, ...prev];
+    });
+
+    if (invoiceExists) {
+      console.log(`Invoice ${invoice.id} already exists. Skipping ledger logging to prevent duplicates.`);
+      return;
+    }
+
     logAction('إتمام عملية بيع (فاتورة)', 'invoice', invoice.id, null, invoice);
     
     // Calculate total cost for COGS
     const totalCost = invoice.items.reduce((sum, item) => sum + (item.buyPrice * item.quantity), 0);
 
+    const invoiceOpId = invoice.operationId || `op-inv-${invoice.id}`;
+
     // 1. Log Sales Entry
     if (invoice.paymentMethod === 'cash') {
-      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'cash', invoice.id);
-      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id);
+      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'cash', invoice.id, `${invoiceOpId}-je-cash-debit`);
+      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
     } else if (invoice.paymentMethod === 'card') {
-      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'bank', invoice.id);
-      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id);
+      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'bank', invoice.id, `${invoiceOpId}-je-bank-debit`);
+      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
     } else {
-      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'receivables', invoice.id);
-      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id);
+      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'receivables', invoice.id, `${invoiceOpId}-je-receivables-debit`);
+      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
     }
 
     // 2. Log COGS and Inventory Entry
-    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, totalCost, 0, 'expenses', invoice.id);
-    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, 0, totalCost, 'inventory', invoice.id);
+    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, totalCost, 0, 'expenses', invoice.id, `${invoiceOpId}-je-cogs-debit`);
+    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, 0, totalCost, 'inventory', invoice.id, `${invoiceOpId}-je-inventory-credit`);
 
     // Update shift if active
     if (activeShift) {
@@ -568,8 +675,12 @@ export default function App() {
     if (invoice.paymentMethod === 'credit' && invoice.customerName) {
       setCustomers(prev => prev.map(c => {
         if (c.name === invoice.customerName) {
+          const transOpId = `op-ct-${invoice.id}-sale`;
+          const alreadyExists = customerTransactions.some(t => t.operationId === transOpId);
+          if (alreadyExists) return c;
+
           const newDebt = c.currentDebt + invoice.total;
-          logCustomerTransaction(c.id, 'sale', invoice.total, invoice.id, `بيع آجل فاتورة رقم ${invoice.invoiceNumber}`, newDebt);
+          logCustomerTransaction(c.id, 'sale', invoice.total, invoice.id, `بيع آجل فاتورة رقم ${invoice.invoiceNumber}`, newDebt, transOpId);
           return { ...c, currentDebt: newDebt };
         }
         return c;
@@ -578,37 +689,54 @@ export default function App() {
   };
 
   const handleAddPurchase = (purchase: PurchaseInvoice) => {
-    setPurchases(prev => [purchase, ...prev]);
+    let purchaseExists = false;
+    setPurchases(prev => {
+      purchaseExists = prev.some(p => p.id === purchase.id || (purchase.operationId && p.operationId === purchase.operationId));
+      if (purchaseExists) return prev;
+      return [purchase, ...prev];
+    });
+
+    if (purchaseExists) {
+      console.log(`Purchase ${purchase.id} already exists. Skipping ledger logging.`);
+      return;
+    }
+
+    const purchaseOpId = purchase.operationId || `op-pur-${purchase.id}`;
     
     // Log Journal Entries for Purchase
     if (purchase.status === 'paid') {
-      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id);
-      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'cash', purchase.id);
+      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id, `${purchaseOpId}-je-inventory-debit`);
+      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'cash', purchase.id, `${purchaseOpId}-je-cash-credit`);
     } else {
-      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id);
-      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'payables', purchase.id);
+      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id, `${purchaseOpId}-je-inventory-debit`);
+      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'payables', purchase.id, `${purchaseOpId}-je-payables-credit`);
     }
 
     // Increase stock for each item in purchase
     purchase.items.forEach(item => {
-      updateProductStock(item.productId, item.quantity);
+      updateProductStock(item.productId, item.quantity, `op-stock-${purchase.id}-${item.productId}`);
     });
 
     // Update supplier balance if pending
     if (purchase.status === 'pending') {
       setSuppliers(prev => prev.map(s => {
         if (s.id === purchase.supplierId) {
+          const transOpId = `op-st-${purchase.id}-purchase`;
+          const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+          if (alreadyExists) return s;
+
           const newBalance = s.balance + purchase.total;
-          logSupplierTransaction(s.id, 'purchase', purchase.total, purchase.id, `شراء فاتورة رقم ${purchase.purchaseNumber}`, newBalance);
+          logSupplierTransaction(s.id, 'purchase', purchase.total, purchase.id, `شراء فاتورة رقم ${purchase.purchaseNumber}`, newBalance, transOpId);
           return { ...s, balance: newBalance };
         }
         return s;
       }));
     } else {
-      // Even if paid, we might want to log it as a transaction with 0 impact on balance or two entries?
-      // Usually, paid means it went out of cash immediately.
-      // Let's log it for history anyway.
-      logSupplierTransaction(purchase.supplierId, 'purchase', purchase.total, purchase.id, `شراء نقدي فاتورة رقم ${purchase.purchaseNumber}`, 0);
+      const transOpId = `op-st-${purchase.id}-purchase-cash`;
+      const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+      if (!alreadyExists) {
+        logSupplierTransaction(purchase.supplierId, 'purchase', purchase.total, purchase.id, `شراء نقدي فاتورة رقم ${purchase.purchaseNumber}`, 0, transOpId);
+      }
     }
   };
 
@@ -630,32 +758,42 @@ export default function App() {
     if (confirm('هل أنت متأكد من إرجاع هذه المشتريات؟ سيتم خصم الكميات من المخزون وتعديل رصيد المورد.')) {
       setPurchases(prev => prev.map(p => p.id === purchaseId ? { ...p, status: 'voided' } : p));
       
+      const voidOpId = `op-pur-void-${purchase.id}`;
+
       // Reverse Journal Entries for Return
       if (purchase.status === 'paid') {
-        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'cash', purchase.id);
-        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id);
+        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'cash', purchase.id, `${voidOpId}-je-cash-debit`);
+        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
       } else {
-        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'payables', purchase.id);
-        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id);
+        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'payables', purchase.id, `${voidOpId}-je-payables-debit`);
+        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
       }
 
       // Decrease stock for each item
       purchase.items.forEach(item => {
-        updateProductStock(item.productId, -item.quantity);
+        updateProductStock(item.productId, -item.quantity, `op-stock-void-${purchase.id}-${item.productId}`);
       });
 
       // Update supplier balance if it was pending
       if (purchase.status === 'pending') {
         setSuppliers(prev => prev.map(s => {
           if (s.id === purchase.supplierId) {
+            const transOpId = `op-st-${purchase.id}-return`;
+            const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+            if (alreadyExists) return s;
+
             const newBalance = Math.max(0, s.balance - purchase.total);
-            logSupplierTransaction(s.id, 'return', purchase.total, purchase.id, `إرجاع مشتريات فاتورة رقم ${purchase.purchaseNumber}`, newBalance);
+            logSupplierTransaction(s.id, 'return', purchase.total, purchase.id, `إرجاع مشتريات فاتورة رقم ${purchase.purchaseNumber}`, newBalance, transOpId);
             return { ...s, balance: newBalance };
           }
           return s;
         }));
       } else {
-        logSupplierTransaction(purchase.supplierId, 'return', purchase.total, purchase.id, `إرجاع مشتريات (نقدي) فاتورة رقم ${purchase.purchaseNumber}`, 0);
+        const transOpId = `op-st-${purchase.id}-return-cash`;
+        const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+        if (!alreadyExists) {
+          logSupplierTransaction(purchase.supplierId, 'return', purchase.total, purchase.id, `إرجاع مشتريات (نقدي) فاتورة رقم ${purchase.purchaseNumber}`, 0, transOpId);
+        }
       }
 
       logAction('إرجاع مشتريات (Void)', 'supplier', purchase.supplierId, purchase, { ...purchase, status: 'voided' });
