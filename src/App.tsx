@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement } from './types';
+import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement, Employee, AttendanceRecord, PayrollRecord, AdvancePayment } from './types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_SUPPLIERS, 
@@ -8,7 +8,11 @@ import {
   INITIAL_INVOICES, 
   INITIAL_PURCHASES,
   INITIAL_USERS,
-  DEFAULT_SETTINGS
+  DEFAULT_SETTINGS,
+  INITIAL_EMPLOYEES,
+  INITIAL_ATTENDANCE,
+  INITIAL_PAYROLLS,
+  INITIAL_ADVANCES
 } from './mockData';
 import { saveToFirebase, loadFromFirebase, auth, logoutFirebase } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -29,6 +33,8 @@ import AuditLogView from './components/AuditLogView';
 import InventoryReportsView from './components/InventoryReportsView';
 import { AccountingView } from './components/AccountingView';
 import { SettingsView } from './components/SettingsView';
+import { HrView } from './components/HrView';
+import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
 
 function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {
@@ -62,6 +68,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('sm_users');
@@ -234,6 +241,44 @@ export default function App() {
     }
   }, [inventoryMovements, isFirebaseLoading]);
 
+  // HR States
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    const saved = localStorage.getItem('sm_employees');
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+  });
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
+    const saved = localStorage.getItem('sm_attendance');
+    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
+  });
+  const [payrolls, setPayrolls] = useState<PayrollRecord[]>(() => {
+    const saved = localStorage.getItem('sm_payrolls');
+    return saved ? JSON.parse(saved) : INITIAL_PAYROLLS;
+  });
+  const [advances, setAdvances] = useState<AdvancePayment[]>(() => {
+    const saved = localStorage.getItem('sm_advances');
+    return saved ? JSON.parse(saved) : INITIAL_ADVANCES;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sm_employees', JSON.stringify(employees));
+    if (!isFirebaseLoading) saveToFirebase('sm_employees', employees);
+  }, [employees, isFirebaseLoading]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_attendance', JSON.stringify(attendance));
+    if (!isFirebaseLoading) saveToFirebase('sm_attendance', attendance);
+  }, [attendance, isFirebaseLoading]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_payrolls', JSON.stringify(payrolls));
+    if (!isFirebaseLoading) saveToFirebase('sm_payrolls', payrolls);
+  }, [payrolls, isFirebaseLoading]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_advances', JSON.stringify(advances));
+    if (!isFirebaseLoading) saveToFirebase('sm_advances', advances);
+  }, [advances, isFirebaseLoading]);
+
   useEffect(() => {
     let unsubscribeAuth: (() => void) | null = null;
 
@@ -253,6 +298,10 @@ export default function App() {
         const ct = await loadFromFirebase('pos_customer_transactions');
         const je = await loadFromFirebase('sm_journal_entries');
         const mov = await loadFromFirebase('sm_inventory_movements');
+        const emp = await loadFromFirebase('sm_employees');
+        const att = await loadFromFirebase('sm_attendance');
+        const pay = await loadFromFirebase('sm_payrolls');
+        const adv = await loadFromFirebase('sm_advances');
         const sett = await loadFromFirebase('sm_settings');
 
         let currentUsersList = u || INITIAL_USERS;
@@ -271,6 +320,10 @@ export default function App() {
         if (ct !== null) setCustomerTransactions(prev => mergeUniqueById(prev, ct)); else { await saveToFirebase('pos_customer_transactions', []); }
         if (je !== null) setJournalEntries(prev => mergeUniqueById(prev, je)); else { await saveToFirebase('sm_journal_entries', []); }
         if (mov !== null) setInventoryMovements(prev => mergeUniqueById(prev, mov)); else { await saveToFirebase('sm_inventory_movements', []); }
+        if (emp !== null) setEmployees(prev => mergeUniqueById(prev, emp)); else { await saveToFirebase('sm_employees', INITIAL_EMPLOYEES); }
+        if (att !== null) setAttendance(prev => mergeUniqueById(prev, att)); else { await saveToFirebase('sm_attendance', INITIAL_ATTENDANCE); }
+        if (pay !== null) setPayrolls(prev => mergeUniqueById(prev, pay)); else { await saveToFirebase('sm_payrolls', INITIAL_PAYROLLS); }
+        if (adv !== null) setAdvances(prev => mergeUniqueById(prev, adv)); else { await saveToFirebase('sm_advances', INITIAL_ADVANCES); }
         if (sett !== null) setSettings(sett); else { await saveToFirebase('sm_settings', DEFAULT_SETTINGS); }
 
         unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
@@ -809,20 +862,29 @@ export default function App() {
   };
 
   const handlePaySupplierDebt = (supplierId: string, amount: number) => {
-    const supplier = suppliers.find(s => s.id === supplierId);
+    const paymentId = 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+    const transOpId = `op-st-${paymentId}-payment`;
+
+    let alreadyExists = false;
     setSuppliers(prev => prev.map(s => {
       if (s.id === supplierId) {
+        alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+        if (alreadyExists) return s;
+
         const newBalance = Math.max(0, s.balance - amount);
-        logSupplierTransaction(s.id, 'payment', amount, 'pay-' + Date.now(), 'دفعة نقدية مسددة', newBalance);
+        logSupplierTransaction(s.id, 'payment', amount, paymentId, 'دفعة نقدية مسددة', newBalance, transOpId);
         
         // Log Journal Entry
-        logJournalEntry('payment', `سداد دفعة للمورد: ${s.name}`, amount, 0, 'payables', s.id);
-        logJournalEntry('payment', `سداد دفعة للمورد: ${s.name}`, 0, amount, 'cash', s.id);
+        logJournalEntry('payment', `سداد دفعة للمورد: ${s.name}`, amount, 0, 'payables', paymentId, `${transOpId}-je-payables-debit`);
+        logJournalEntry('payment', `سداد دفعة للمورد: ${s.name}`, 0, amount, 'cash', paymentId, `${transOpId}-je-cash-credit`);
 
         return { ...s, balance: newBalance };
       }
       return s;
     }));
+
+    if (alreadyExists) return;
+
     // Deduct from shift if active
     if (activeShift) {
       setShifts(prev => prev.map(s => s.id === activeShift.id ? {
@@ -853,20 +915,29 @@ export default function App() {
   };
 
   const handlePayDebt = (customerId: string, amount: number) => {
-    const customer = customers.find(c => c.id === customerId);
+    const paymentId = 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+    const transOpId = `op-ct-${paymentId}-collection`;
+
+    let alreadyExists = false;
     setCustomers(prev => prev.map(c => {
       if (c.id === customerId) {
+        alreadyExists = customerTransactions.some(t => t.operationId === transOpId);
+        if (alreadyExists) return c;
+
         const newDebt = Math.max(0, c.currentDebt - amount);
-        logCustomerTransaction(c.id, 'collection', amount, 'pay-' + Date.now(), 'تحصيل نقدي من العميل', newDebt);
+        logCustomerTransaction(c.id, 'collection', amount, paymentId, 'تحصيل نقدي من العميل', newDebt, transOpId);
         
         // Log Journal Entry
-        logJournalEntry('collection', `تحصيل من العميل: ${c.name}`, amount, 0, 'cash', c.id);
-        logJournalEntry('collection', `تحصيل من العميل: ${c.name}`, 0, amount, 'receivables', c.id);
+        logJournalEntry('collection', `تحصيل من العميل: ${c.name}`, amount, 0, 'cash', paymentId, `${transOpId}-je-cash-debit`);
+        logJournalEntry('collection', `تحصيل من العميل: ${c.name}`, 0, amount, 'receivables', paymentId, `${transOpId}-je-receivables-credit`);
 
         return { ...c, currentDebt: newDebt };
       }
       return c;
     }));
+
+    if (alreadyExists) return;
+
     // Add to shift if active
     if (activeShift) {
       setShifts(prev => prev.map(s => s.id === activeShift.id ? {
@@ -878,13 +949,25 @@ export default function App() {
   };
 
   const handleAddExpense = (expense: Expense) => {
+    let expenseExists = false;
+    setExpenses(prev => {
+      expenseExists = prev.some(e => e.id === expense.id || (expense.operationId && e.operationId === expense.operationId));
+      if (expenseExists) return prev;
+
+      const expenseWithStatus = { ...expense, status: 'active' as const };
+      return [expenseWithStatus, ...prev];
+    });
+
+    if (expenseExists) return;
+
     const expenseWithStatus = { ...expense, status: 'active' as const };
-    setExpenses(prev => [expenseWithStatus, ...prev]);
     logAction('إضافة مصروف جديد', 'expense', expense.id, null, expenseWithStatus);
 
+    const expenseOpId = expense.operationId || `op-exp-${expense.id}`;
+
     // Log Journal Entry
-    logJournalEntry('expense', `صرف مصروف: ${expense.title} (${expense.category})`, expense.amount, 0, 'expenses', expense.id);
-    logJournalEntry('expense', `صرف مصروف: ${expense.title} (${expense.category})`, 0, expense.amount, 'cash', expense.id);
+    logJournalEntry('expense', `صرف مصروف: ${expense.title} (${expense.category})`, expense.amount, 0, 'expenses', expense.id, `${expenseOpId}-je-expenses-debit`);
+    logJournalEntry('expense', `صرف مصروف: ${expense.title} (${expense.category})`, 0, expense.amount, 'cash', expense.id, `${expenseOpId}-je-cash-credit`);
 
     // Deduct from shift if active
     if (activeShift) {
@@ -908,12 +991,27 @@ export default function App() {
 
     if (confirm('هل أنت متأكد من إلغاء (Void) هذا المصروف؟ لن يتم حذفه نهائياً بل سيتم تمييزه كملغي.')) {
       const voidedExpense = { ...expense, status: 'voided' as const };
-      setExpenses(prev => prev.map(e => e.id === expenseId ? voidedExpense : e));
+      
+      let alreadyVoided = false;
+      setExpenses(prev => prev.map(e => {
+        if (e.id === expenseId) {
+          if (e.status === 'voided') {
+            alreadyVoided = true;
+          }
+          return voidedExpense;
+        }
+        return e;
+      }));
+
+      if (alreadyVoided) return;
+
       logAction('إلغاء مصروف (Void)', 'expense', expenseId, expense, voidedExpense);
       
+      const voidOpId = `op-exp-void-${expense.id}`;
+
       // Reverse Journal Entry
-      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, expense.amount, 0, 'cash', expense.id);
-      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, 0, expense.amount, 'expenses', expense.id);
+      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, expense.amount, 0, 'cash', expense.id, `${voidOpId}-je-cash-debit`);
+      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, 0, expense.amount, 'expenses', expense.id, `${voidOpId}-je-expenses-credit`);
 
       // Reverse from shift if it was on the same shift (simplified: just log it, reversing from shift is complex if shift is closed)
       if (activeShift) {
@@ -954,6 +1052,8 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         permissionMatrix={permissionMatrix}
+        settings={settings}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
 
       <main className="flex-1 overflow-y-auto h-full pb-24 lg:pb-12">
@@ -1054,6 +1154,20 @@ export default function App() {
             currentUser={currentUser}
           />
         )}
+        {activeTab === 'hr' && hasPermission(currentUser, 'hr', 'view', permissionMatrix) && (
+          <HrView 
+            employees={employees}
+            setEmployees={setEmployees}
+            attendance={attendance}
+            setAttendance={setAttendance}
+            payrolls={payrolls}
+            setPayrolls={setPayrolls}
+            advances={advances}
+            setAdvances={setAdvances}
+            setExpenses={setExpenses}
+            setJournalEntries={setJournalEntries}
+          />
+        )}
         {activeTab === 'shifts' && hasPermission(currentUser, 'shifts', 'view', permissionMatrix) && (
           <ShiftsView 
             shifts={shifts}
@@ -1091,6 +1205,16 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Universal Command Palette Modal (Ctrl + K) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        setActiveTab={setActiveTab}
+        products={products}
+        customers={customers}
+        suppliers={suppliers}
+      />
     </div>
   );
 }

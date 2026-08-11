@@ -173,23 +173,34 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ entries }) => {
                     <tbody className="divide-y divide-slate-100">
                       {filteredEntries.map(entry => (
                         <tr key={entry.id} className="hover:bg-slate-50/50 text-xs transition-colors">
-                          <td className="p-4 text-slate-500 whitespace-nowrap">{new Date(entry.date).toLocaleString('ar-EG')}</td>
-                          <td className="p-4 font-mono text-slate-400">#{entry.id.split('-')[2]}</td>
+                          <td className="p-4 text-slate-500 whitespace-nowrap font-mono-numbers">{new Date(entry.date).toLocaleString('ar-EG')}</td>
+                          <td className="p-4 font-mono-numbers text-slate-400">#{entry.id.split('-')[2] || entry.id}</td>
                           <td className="p-4 font-bold text-slate-900">{entry.description}</td>
                           <td className="p-4">
                             <span className="px-2 py-1 bg-slate-100 rounded-lg font-black text-[10px]">
                               {ACCOUNT_NAMES[entry.account] || entry.account}
                             </span>
                           </td>
-                          <td className="p-4 text-left font-black text-emerald-600">
-                            {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+                          <td className="p-4 text-left font-black text-emerald-600 font-mono-numbers">
+                            {entry.debit > 0 ? `ج.م ${entry.debit.toLocaleString()}` : '-'}
                           </td>
-                          <td className="p-4 text-left font-black text-rose-600">
-                            {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                          <td className="p-4 text-left font-black text-rose-600 font-mono-numbers">
+                            {entry.credit > 0 ? `ج.م ${entry.credit.toLocaleString()}` : '-'}
                           </td>
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot className="bg-slate-900 text-white font-black text-xs">
+                      <tr>
+                        <td colSpan={4} className="p-4 text-right">إجمالي القيود المعروضة (Total Balance Check)</td>
+                        <td className="p-4 text-left text-emerald-400 font-mono-numbers">
+                          ج.م {filteredEntries.reduce((s, e) => s + e.debit, 0).toLocaleString()}
+                        </td>
+                        <td className="p-4 text-left text-rose-400 font-mono-numbers">
+                          ج.م {filteredEntries.reduce((s, e) => s + e.credit, 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>

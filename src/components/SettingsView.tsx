@@ -637,6 +637,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Direct Thermal Silent Printing Mode */}
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200 flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="directPrintMode"
+                      checked={formSettings.directPrintMode ?? true}
+                      onChange={(e) => handleInputChange('directPrintMode', e.target.checked)}
+                      className="mt-1 h-4 w-4 text-emerald-600 border-emerald-300 rounded"
+                    />
+                    <div className="space-y-0.5">
+                      <label htmlFor="directPrintMode" className="text-xs font-bold text-emerald-950 cursor-pointer">
+                        وضع الطباعة الحرارية المباشرة السريعة (Direct Thermal Silent Print)
+                      </label>
+                      <p className="text-[10px] text-emerald-700">
+                        إرسال الإيصال فوراً إلى خادم طابعة الفواتير المباشرة بدون التأخير في حوارات المتصفح المكررة لسرعة فائقة للكاشير.
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Toggle auto qty increment */}
                   <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-start gap-3">
                     <input

@@ -1,0 +1,22 @@
+{
+  "short_name": "CashierERP",
+  "name": "Cashier Pro ERP & POS Manager",
+  "icons": [
+    {
+      "src": "pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "any",
+  "description": "نظام كاشير وإدارة المبيعات والمخزون والحسابات الشامل PWA"
+}

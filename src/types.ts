@@ -9,6 +9,8 @@ export interface Product {
   minStock: number;
   unit: string; // 'قطعة', 'كيلو', 'لتر', 'عبوة', 'كرتونة'
   expiryDate?: string;
+  sku?: string;
+  isActive?: boolean;
 }
 
 export interface CartItem {
@@ -179,6 +181,56 @@ export interface RolePermissionSet {
 
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'approve' | 'cancel' | 'print' | 'export';
 
+export interface Employee {
+  id: string;
+  name: string;
+  phone: string;
+  position: string;
+  department: string;
+  baseSalary: number;
+  joinDate: string;
+  status: 'active' | 'inactive';
+}
+
+export interface AttendanceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  checkInTime: string;
+  checkOutTime?: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+  notes?: string;
+  operationId?: string;
+}
+
+export interface PayrollRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  month: string; // e.g. '2026-08'
+  baseSalary: number;
+  bonuses: number;
+  deductions: number;
+  advances: number;
+  netSalary: number;
+  status: 'paid' | 'pending';
+  paymentDate?: string;
+  notes?: string;
+  operationId?: string;
+}
+
+export interface AdvancePayment {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  amount: number;
+  date: string;
+  reason: string;
+  status: 'pending' | 'deducted';
+  operationId?: string;
+}
+
 export type ModuleName = 
   | 'dashboard' 
   | 'pos' 
@@ -193,6 +245,7 @@ export type ModuleName =
   | 'audit_log' 
   | 'inventory_reports' 
   | 'accounting'
+  | 'hr'
   | 'requirements'
   | 'settings';
 
@@ -213,7 +266,7 @@ export interface AuditLogEntry {
   userName: string;
   userRole: UserRole;
   action: string;
-  entityType: 'product' | 'user' | 'invoice' | 'expense' | 'supplier' | 'customer' | 'shift';
+  entityType: 'product' | 'user' | 'invoice' | 'expense' | 'supplier' | 'customer' | 'shift' | 'employee' | 'payroll';
   entityId: string;
   timestamp: string;
   before?: any;
@@ -224,7 +277,7 @@ export interface AuditLogEntry {
 export interface JournalEntry {
   id: string;
   date: string;
-  type: 'sale' | 'purchase' | 'expense' | 'collection' | 'payment' | 'return' | 'opening';
+  type: 'sale' | 'purchase' | 'expense' | 'collection' | 'payment' | 'return' | 'opening' | 'payroll';
   description: string;
   debit: number;
   credit: number;
@@ -259,7 +312,24 @@ export type ActiveTab =
   | 'audit_log'
   | 'inventory_reports'
   | 'accounting'
+  | 'hr'
   | 'settings';
+
+export interface InstallmentPlan {
+  id: string;
+  customerId: string;
+  customerName: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  installmentCount: number;
+  monthlyAmount: number;
+  startDate: string;
+  nextDueDate: string;
+  status: 'active' | 'completed' | 'overdue';
+  notes?: string;
+  operationId?: string;
+}
 
 export interface SystemSettings {
   storeName: string;
@@ -277,5 +347,8 @@ export interface SystemSettings {
   soundEnabled: boolean;
   autoIncrementQty: boolean;
   printerSimulated: boolean;
+  directPrintMode?: boolean;
+  silentPrintMode?: boolean;
+  thermalWidth?: '80mm' | '58mm';
 }
 

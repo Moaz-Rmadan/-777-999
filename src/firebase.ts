@@ -58,7 +58,9 @@ export async function logoutFirebase() {
 export async function saveToFirebase(key: string, data: any) {
   try {
     const docRef = doc(db, 'system_data', key);
-    await setDoc(docRef, { data });
+    // Sanitize data to remove any undefined values which Firestore rejects
+    const sanitizedData = JSON.parse(JSON.stringify(data));
+    await setDoc(docRef, { data: sanitizedData });
   } catch (error) {
     console.error(`Firebase write error for ${key}:`, error);
   }

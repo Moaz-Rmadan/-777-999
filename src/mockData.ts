@@ -1,4 +1,27 @@
-import { Product, Supplier, Customer, Expense, Invoice, PurchaseInvoice, User, SystemSettings } from './types';
+import { Product, Supplier, Customer, Expense, Invoice, PurchaseInvoice, User, SystemSettings, Employee, AttendanceRecord, PayrollRecord, AdvancePayment } from './types';
+
+export const INITIAL_EMPLOYEES: Employee[] = [
+  { id: 'emp-1', name: 'إبراهيم ممدوح', phone: '01011223344', position: 'مسؤول مبيعات', department: 'المبيعات', baseSalary: 6000, joinDate: '2025-01-10', status: 'active' },
+  { id: 'emp-2', name: 'محمود عبد الله', phone: '01022334455', position: 'محاسب أول', department: 'المالية', baseSalary: 7500, joinDate: '2024-06-15', status: 'active' },
+  { id: 'emp-3', name: 'مصطفى كمال', phone: '01033445566', position: 'أمين مخزن', department: 'المستودع', baseSalary: 5500, joinDate: '2025-03-01', status: 'active' },
+  { id: 'emp-4', name: 'كريم علي', phone: '01044556677', position: 'كاشير', department: 'المبيعات', baseSalary: 5000, joinDate: '2025-08-12', status: 'active' },
+];
+
+export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
+  { id: 'att-1', employeeId: 'emp-1', employeeName: 'إبراهيم ممدوح', date: '2026-08-11', checkInTime: '08:00', checkOutTime: '16:00', status: 'present' },
+  { id: 'att-2', employeeId: 'emp-2', employeeName: 'محمود عبد الله', date: '2026-08-11', checkInTime: '08:15', checkOutTime: '16:00', status: 'late', notes: 'تأخير 15 دقيقة بسبب المواصلات' },
+  { id: 'att-3', employeeId: 'emp-3', employeeName: 'مصطفى كمال', date: '2026-08-11', checkInTime: '08:00', checkOutTime: '16:00', status: 'present' },
+  { id: 'att-4', employeeId: 'emp-4', employeeName: 'كريم علي', date: '2026-08-11', checkInTime: '', status: 'absent', notes: 'إذن عارض' },
+];
+
+export const INITIAL_PAYROLLS: PayrollRecord[] = [
+  { id: 'pay-1', employeeId: 'emp-1', employeeName: 'إبراهيم ممدوح', month: '2026-07', baseSalary: 6000, bonuses: 300, deductions: 0, advances: 500, netSalary: 5800, status: 'paid', paymentDate: '2026-08-01' },
+  { id: 'pay-2', employeeId: 'emp-2', employeeName: 'محمود عبد الله', month: '2026-07', baseSalary: 7500, bonuses: 500, deductions: 100, advances: 1000, netSalary: 6900, status: 'paid', paymentDate: '2026-08-01' },
+];
+
+export const INITIAL_ADVANCES: AdvancePayment[] = [
+  { id: 'adv-1', employeeId: 'emp-1', employeeName: 'إبراهيم ممدوح', amount: 500, date: '2026-08-05', reason: 'ظروف طارئة', status: 'deducted' },
+];
 
 export const INITIAL_USERS: User[] = [
   { id: 'u1', name: 'أحمد المدير العام', username: 'admin', role: 'super_admin', email: 'cfo.moaz@gmail.com' },
