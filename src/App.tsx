@@ -35,6 +35,7 @@ import { AccountingView } from './components/AccountingView';
 import { SettingsView } from './components/SettingsView';
 import { HrView } from './components/HrView';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
+import { ConfirmModal } from './components/ConfirmModal';
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
 
 function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {
@@ -69,6 +70,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('sm_users');
@@ -576,10 +584,17 @@ export default function App() {
 
   const handleDeleteUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
-    if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      logAction('حذف مستخدم من النظام', 'user', userId, { ...user, password: '***' }, null);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد حذف المستخدم',
+      message: `هل أنت متأكد من حذف المستخدم "${user?.name || ''}" من النظام؟`,
+      confirmLabel: 'نعم، حذف المستخدم',
+      onConfirm: () => {
+        setUsers(prev => prev.filter(u => u.id !== userId));
+        logAction('حذف مستخدم من النظام', 'user', userId, { ...user, password: '***' }, null);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handleOpenShift = (openingBalance: number) => {
@@ -637,10 +652,17 @@ export default function App() {
 
   const handleDeleteProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
-    if (confirm('هل أنت متأكد من حذف هذا الصنف من المخزون؟')) {
-      setProducts(prev => prev.filter(p => p.id !== productId));
-      logAction('حذف صنف من المخزون', 'product', productId, product, null);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد حذف الصنف',
+      message: `هل أنت متأكد من حذف الصنف "${product?.name || ''}" من المخزون؟`,
+      confirmLabel: 'نعم، حذف الصنف',
+      onConfirm: () => {
+        setProducts(prev => prev.filter(p => p.id !== productId));
+        logAction('حذف صنف من المخزون', 'product', productId, product, null);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const updateProductStock = (productId: string, qtyChange: number, operationId?: string) => {
@@ -808,57 +830,71 @@ export default function App() {
     const purchase = purchases.find(p => p.id === purchaseId);
     if (!purchase) return;
 
-    if (confirm('هل أنت متأكد من إرجاع هذه المشتريات؟ سيتم خصم الكميات من المخزون وتعديل رصيد المورد.')) {
-      setPurchases(prev => prev.map(p => p.id === purchaseId ? { ...p, status: 'voided' } : p));
-      
-      const voidOpId = `op-pur-void-${purchase.id}`;
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد إرجاع/إلغاء المشتريات',
+      message: `هل أنت متأكد من إرجاع فاتورة المشتريات رقم ${purchase.purchaseNumber}؟ سيتم خصم الكميات من المخزون وتعديل رصيد المورد.`,
+      confirmLabel: 'نعم، إرجاع المشتريات',
+      onConfirm: () => {
+        setPurchases(prev => prev.map(p => p.id === purchaseId ? { ...p, status: 'voided' } : p));
+        
+        const voidOpId = `op-pur-void-${purchase.id}`;
 
-      // Reverse Journal Entries for Return
-      if (purchase.status === 'paid') {
-        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'cash', purchase.id, `${voidOpId}-je-cash-debit`);
-        logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
-      } else {
-        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'payables', purchase.id, `${voidOpId}-je-payables-debit`);
-        logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
-      }
-
-      // Decrease stock for each item
-      purchase.items.forEach(item => {
-        updateProductStock(item.productId, -item.quantity, `op-stock-void-${purchase.id}-${item.productId}`);
-      });
-
-      // Update supplier balance if it was pending
-      if (purchase.status === 'pending') {
-        setSuppliers(prev => prev.map(s => {
-          if (s.id === purchase.supplierId) {
-            const transOpId = `op-st-${purchase.id}-return`;
-            const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
-            if (alreadyExists) return s;
-
-            const newBalance = Math.max(0, s.balance - purchase.total);
-            logSupplierTransaction(s.id, 'return', purchase.total, purchase.id, `إرجاع مشتريات فاتورة رقم ${purchase.purchaseNumber}`, newBalance, transOpId);
-            return { ...s, balance: newBalance };
-          }
-          return s;
-        }));
-      } else {
-        const transOpId = `op-st-${purchase.id}-return-cash`;
-        const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
-        if (!alreadyExists) {
-          logSupplierTransaction(purchase.supplierId, 'return', purchase.total, purchase.id, `إرجاع مشتريات (نقدي) فاتورة رقم ${purchase.purchaseNumber}`, 0, transOpId);
+        // Reverse Journal Entries for Return
+        if (purchase.status === 'paid') {
+          logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'cash', purchase.id, `${voidOpId}-je-cash-debit`);
+          logJournalEntry('return', `مرتجع مشتريات نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
+        } else {
+          logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'payables', purchase.id, `${voidOpId}-je-payables-debit`);
+          logJournalEntry('return', `مرتجع مشتريات آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'inventory', purchase.id, `${voidOpId}-je-inventory-credit`);
         }
-      }
 
-      logAction('إرجاع مشتريات (Void)', 'supplier', purchase.supplierId, purchase, { ...purchase, status: 'voided' });
-    }
+        // Decrease stock for each item
+        purchase.items.forEach(item => {
+          updateProductStock(item.productId, -item.quantity, `op-stock-void-${purchase.id}-${item.productId}`);
+        });
+
+        // Update supplier balance if it was pending
+        if (purchase.status === 'pending') {
+          setSuppliers(prev => prev.map(s => {
+            if (s.id === purchase.supplierId) {
+              const transOpId = `op-st-${purchase.id}-return`;
+              const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+              if (alreadyExists) return s;
+
+              const newBalance = Math.max(0, s.balance - purchase.total);
+              logSupplierTransaction(s.id, 'return', purchase.total, purchase.id, `إرجاع مشتريات فاتورة رقم ${purchase.purchaseNumber}`, newBalance, transOpId);
+              return { ...s, balance: newBalance };
+            }
+            return s;
+          }));
+        } else {
+          const transOpId = `op-st-${purchase.id}-return-cash`;
+          const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
+          if (!alreadyExists) {
+            logSupplierTransaction(purchase.supplierId, 'return', purchase.total, purchase.id, `إرجاع مشتريات (نقدي) فاتورة رقم ${purchase.purchaseNumber}`, 0, transOpId);
+          }
+        }
+
+        logAction('إرجاع مشتريات (Void)', 'supplier', purchase.supplierId, purchase, { ...purchase, status: 'voided' });
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handleDeleteSupplier = (supplierId: string) => {
     const supplier = suppliers.find(s => s.id === supplierId);
-    if (confirm('هل أنت متأكد من حذف هذا المورد؟')) {
-      setSuppliers(prev => prev.filter(s => s.id !== supplierId));
-      logAction('حذف مورد من النظام', 'supplier', supplierId, supplier, null);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد حذف المورد',
+      message: `هل أنت متأكد من حذف المورد "${supplier?.name || ''}" من النظام؟`,
+      confirmLabel: 'نعم، حذف المورد',
+      onConfirm: () => {
+        setSuppliers(prev => prev.filter(s => s.id !== supplierId));
+        logAction('حذف مورد من النظام', 'supplier', supplierId, supplier, null);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handlePaySupplierDebt = (supplierId: string, amount: number) => {
@@ -908,10 +944,17 @@ export default function App() {
 
   const handleDeleteCustomer = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
-    if (confirm('هل أنت متأكد من حذف هذا العميل؟')) {
-      setCustomers(prev => prev.filter(c => c.id !== customerId));
-      logAction('حذف عميل من النظام', 'customer', customerId, customer, null);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد حذف العميل',
+      message: `هل أنت متأكد من حذف العميل "${customer?.name || ''}" من النظام؟`,
+      confirmLabel: 'نعم، حذف العميل',
+      onConfirm: () => {
+        setCustomers(prev => prev.filter(c => c.id !== customerId));
+        logAction('حذف عميل من النظام', 'customer', customerId, customer, null);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handlePayDebt = (customerId: string, amount: number) => {
@@ -989,39 +1032,45 @@ export default function App() {
     const expense = expenses.find(e => e.id === expenseId);
     if (!expense) return;
 
-    if (confirm('هل أنت متأكد من إلغاء (Void) هذا المصروف؟ لن يتم حذفه نهائياً بل سيتم تمييزه كملغي.')) {
-      const voidedExpense = { ...expense, status: 'voided' as const };
-      
-      let alreadyVoided = false;
-      setExpenses(prev => prev.map(e => {
-        if (e.id === expenseId) {
-          if (e.status === 'voided') {
-            alreadyVoided = true;
+    setConfirmModal({
+      isOpen: true,
+      title: 'تأكيد إلغاء المصروف',
+      message: `هل أنت متأكد من إلغاء (Void) المصروف "${expense.title}" بقيمة ج.م ${expense.amount}؟ سيتم تمييزه كملغي وإعادة تسوية القيد المحاسبي.`,
+      confirmLabel: 'نعم، إلغاء المصروف',
+      onConfirm: () => {
+        const voidedExpense = { ...expense, status: 'voided' as const };
+        
+        let alreadyVoided = false;
+        setExpenses(prev => prev.map(e => {
+          if (e.id === expenseId) {
+            if (e.status === 'voided') {
+              alreadyVoided = true;
+            }
+            return voidedExpense;
           }
-          return voidedExpense;
+          return e;
+        }));
+
+        if (!alreadyVoided) {
+          logAction('إلغاء مصروف (Void)', 'expense', expenseId, expense, voidedExpense);
+          
+          const voidOpId = `op-exp-void-${expense.id}`;
+
+          // Reverse Journal Entry
+          logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, expense.amount, 0, 'cash', expense.id, `${voidOpId}-je-cash-debit`);
+          logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, 0, expense.amount, 'expenses', expense.id, `${voidOpId}-je-expenses-credit`);
+
+          if (activeShift) {
+             setShifts(prev => prev.map(s => s.id === activeShift.id ? {
+               ...s,
+               totalExpenses: s.totalExpenses - expense.amount,
+               expectedCash: s.expectedCash + expense.amount
+             } : s));
+          }
         }
-        return e;
-      }));
-
-      if (alreadyVoided) return;
-
-      logAction('إلغاء مصروف (Void)', 'expense', expenseId, expense, voidedExpense);
-      
-      const voidOpId = `op-exp-void-${expense.id}`;
-
-      // Reverse Journal Entry
-      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, expense.amount, 0, 'cash', expense.id, `${voidOpId}-je-cash-debit`);
-      logJournalEntry('expense', `إلغاء مصروف: ${expense.title}`, 0, expense.amount, 'expenses', expense.id, `${voidOpId}-je-expenses-credit`);
-
-      // Reverse from shift if it was on the same shift (simplified: just log it, reversing from shift is complex if shift is closed)
-      if (activeShift) {
-         setShifts(prev => prev.map(s => s.id === activeShift.id ? {
-           ...s,
-           totalExpenses: s.totalExpenses - expense.amount,
-           expectedCash: s.expectedCash + expense.amount
-         } : s));
+        setConfirmModal(null);
       }
-    }
+    });
   };
 
   const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
@@ -1140,6 +1189,9 @@ export default function App() {
             invoices={invoices}
             expenses={expenses}
             purchases={purchases}
+            customers={customers}
+            suppliers={suppliers}
+            journalEntries={journalEntries}
             currentUser={currentUser}
           />
         )}
@@ -1215,6 +1267,18 @@ export default function App() {
         customers={customers}
         suppliers={suppliers}
       />
+
+      {/* Universal Confirm Modal */}
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 }

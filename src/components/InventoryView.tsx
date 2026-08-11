@@ -96,6 +96,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [importText, setImportText] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Density state: 'compact' | 'dense' | 'comfortable'
+  const [tableDensity, setTableDensity] = useState<'compact' | 'dense' | 'comfortable'>('dense');
+
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))];
 
   // Filtering Engine
@@ -215,8 +218,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       alert('لا توجد منتجات مطابقة لتعديل الأسعار.');
       return;
     }
-
-    if (!window.confirm(`هل أنت أؤكد تعديل الأسعار لـ ${targets.length} منتج؟`)) return;
 
     targets.forEach(p => {
       let oldVal = bulkAdjTarget === 'sell' ? p.sellPrice : p.buyPrice;
@@ -445,19 +446,53 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             ))}
           </div>
 
-          {/* Category Dropdown Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 shrink-0">التصنيف:</span>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="all">جميع التصنيفات</option>
-              {categories.filter(c => c !== 'all').map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+          {/* Category Dropdown Filter & Table Density Switcher */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 shrink-0">التصنيف:</span>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">جميع التصنيفات</option>
+                {categories.filter(c => c !== 'all').map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Density Switcher */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold shrink-0">
+              <span className="px-1.5 text-slate-400 text-[10px]">العرض:</span>
+              <button
+                onClick={() => setTableDensity('compact')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  tableDensity === 'compact' ? 'bg-white text-emerald-800 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="عرض كثيف جداً (36px)"
+              >
+                مضغوط
+              </button>
+              <button
+                onClick={() => setTableDensity('dense')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  tableDensity === 'dense' ? 'bg-white text-emerald-800 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="عرض كثيف مريح (42px)"
+              >
+                كثيف مريح
+              </button>
+              <button
+                onClick={() => setTableDensity('comfortable')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  tableDensity === 'comfortable' ? 'bg-white text-emerald-800 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="عرض واسع مريح (52px)"
+              >
+                واسع
+              </button>
+            </div>
           </div>
 
         </div>
@@ -508,21 +543,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       {/* Products Main Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200/80 font-black">
+        <div className="overflow-x-auto max-h-[620px] scrollbar-thin">
+          <table className="w-full text-right text-xs border-collapse">
+            <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs text-slate-700 border-b border-slate-200 font-black z-10 select-none">
               <tr>
-                <th className="p-4 w-10 text-center">
+                <th className={`w-10 text-center ${tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}>
                   <button onClick={toggleSelectAll} className="text-slate-500 hover:text-slate-900">
                     {isAllSelected ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
                   </button>
                 </th>
-                <th className="p-4">المنتج والرمز</th>
-                <th className="p-4">Barcode</th>
-                <th className="p-4">المخزون</th>
-                <th className="p-4">التكلفة (شراء)</th>
-                <th className="p-4">سعر البيع</th>
-                <th className="p-4 text-center">الإجراءات والعمليات</th>
+                <th className={tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}>المنتج والرمز</th>
+                <th className={tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}>Barcode</th>
+                <th className={tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}>المخزون</th>
+                <th className={tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}>التكلفة (شراء)</th>
+                <th className={tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}>سعر البيع</th>
+                <th className={`text-center ${tableDensity === 'compact' ? 'px-2 py-2' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5'}`}>الإجراءات والعمليات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -538,98 +573,99 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   const isSelected = selectedIds.includes(p.id);
                   const isLow = p.stock > 0 && p.stock <= p.minStock;
                   const isOut = p.stock <= 0;
+                  const cellPadding = tableDensity === 'compact' ? 'px-2 py-1.5' : tableDensity === 'dense' ? 'px-3.5 py-2.5' : 'px-4 py-3.5';
 
                   return (
                     <tr 
                       key={p.id} 
-                      className={`hover:bg-slate-50/70 transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}
+                      className={`hover:bg-emerald-50/30 even:bg-slate-50/40 transition-colors ${isSelected ? 'bg-emerald-50/70' : ''}`}
                     >
                       {/* Checkbox */}
-                      <td className="p-4 text-center">
+                      <td className={`${cellPadding} text-center`}>
                         <button onClick={() => toggleSelectOne(p.id)} className="text-slate-400 hover:text-emerald-600">
                           {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
 
                       {/* Product Name & Details */}
-                      <td className="p-4">
+                      <td className={cellPadding}>
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-black text-slate-900 text-sm">{p.name}</span>
+                            <span className="font-black text-slate-900 text-xs sm:text-sm">{p.name}</span>
                             {p.sku && (
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-mono text-[10px]">
+                              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded font-mono text-[10px]">
                                 {p.sku}
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-slate-400 font-bold">{p.category} • {p.unit}</span>
+                          <span className="text-[10px] text-slate-400 font-bold block">{p.category} • {p.unit}</span>
                         </div>
                       </td>
 
                       {/* Barcode */}
-                      <td className="p-4">
-                        <span className="font-mono-numbers font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <td className={cellPadding}>
+                        <span className="font-mono-numbers font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
                           {p.barcode}
                         </span>
                       </td>
 
                       {/* Stock Badge */}
-                      <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-black inline-flex items-center gap-1.5 font-mono-numbers ${
+                      <td className={cellPadding}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black inline-flex items-center gap-1 font-mono-numbers ${
                           isOut 
                             ? 'bg-rose-100 text-rose-800 border border-rose-200' 
                             : isLow 
                             ? 'bg-amber-100 text-amber-800 border border-amber-200' 
                             : 'bg-emerald-100 text-emerald-800'
                         }`}>
-                          {isOut && <XCircle className="w-3.5 h-3.5 text-rose-600" />}
-                          {isLow && <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
+                          {isOut && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {isLow && <AlertTriangle className="w-3 h-3 text-amber-600" />}
                           <span>{p.stock} {p.unit}</span>
                         </span>
                       </td>
 
                       {/* Buy Cost */}
-                      <td className="p-4 font-mono-numbers text-slate-600 font-bold">
+                      <td className={`${cellPadding} font-mono-numbers text-slate-600 font-bold`}>
                         ج.م {p.buyPrice.toFixed(2)}
                       </td>
 
                       {/* Sell Price */}
-                      <td className="p-4 font-mono-numbers font-black text-emerald-700 text-sm">
+                      <td className={`${cellPadding} font-mono-numbers font-black text-emerald-700`}>
                         ج.م {p.sellPrice.toFixed(2)}
                       </td>
 
                       {/* Action buttons */}
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className={`${cellPadding} text-center`}>
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => {
                               setStockAdjProduct(p);
                               setStockAdjNewQty(p.stock.toString());
                               setShowStockAdjModal(true);
                             }}
-                            className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg transition-colors"
+                            className="p-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg transition-colors"
                             title="تسوية مخزون سريع"
                           >
-                            <Sliders className="w-4 h-4" />
+                            <Sliders className="w-3.5 h-3.5" />
                           </button>
 
                           {canEdit && (
                             <button
                               onClick={() => handleOpenEditModal(p)}
-                              className="p-1.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 text-slate-600 rounded-lg transition-colors"
+                              className="p-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 text-slate-600 rounded-lg transition-colors"
                               title="تعديل بيانات المنتج"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
                           )}
 
                           {canDelete && (
                             <button
                               onClick={() => onDeleteProduct(p.id)}
-                              className="p-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded-lg transition-colors"
+                              className="p-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded-lg transition-colors"
                               title="حذف المنتج"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>

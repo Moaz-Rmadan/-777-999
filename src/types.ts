@@ -336,19 +336,36 @@ export interface SystemSettings {
   storeSlogan: string;
   branchAddress: string;
   phone: string;
+  email?: string;
   taxNumber: string;
   commercialRecord: string;
+  currencySymbol?: string; // 'ج.م' | 'SAR' | 'USD' | 'AED'
+  timezone?: string;
+  branchCode?: string;
   vatRate: number;
   vatIncluded: boolean;
   maxDiscountPercentage: number;
+  defaultPaymentMethod?: 'cash' | 'card' | 'credit';
+  enableCreditSales?: boolean;
+  enableOfflineMode?: boolean;
+  roundTotal?: boolean;
   receiptHeader: string;
   receiptFooter: string;
   enableQrCode: boolean;
+  showTaxBreakdown?: boolean;
+  showCashierName?: boolean;
+  showCustomerDetails?: boolean;
+  showInvoiceBarcode?: boolean;
+  receiptFontSize?: 'compact' | 'normal' | 'large';
   soundEnabled: boolean;
   autoIncrementQty: boolean;
   printerSimulated: boolean;
   directPrintMode?: boolean;
   silentPrintMode?: boolean;
   thermalWidth?: '80mm' | '58mm';
+  cashDrawerKickOnSale?: boolean;
+  scaleBarcodePrefix?: string;
+  compactUiMode?: boolean;
+  themeColor?: 'slate' | 'emerald' | 'indigo' | 'amber';
 }
 

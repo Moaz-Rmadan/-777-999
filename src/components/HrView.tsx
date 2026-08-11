@@ -79,9 +79,7 @@ export const HrView: React.FC<HrViewProps> = ({
   };
 
   const deleteEmployee = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا الموظف؟')) {
-      setEmployees(prev => prev.filter(e => e.id !== id));
-    }
+    setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
   // Attendance actions

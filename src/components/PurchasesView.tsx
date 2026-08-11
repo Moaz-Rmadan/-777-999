@@ -123,27 +123,27 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
       {/* Purchases Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+        <div className="overflow-x-auto max-h-[580px] scrollbar-thin">
+          <table className="w-full text-right text-xs border-collapse">
+            <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs text-slate-700 border-b border-slate-200 font-black z-10 select-none">
               <tr>
-                <th className="p-4">رقم الفاتورة</th>
-                <th className="p-4">المورد</th>
-                <th className="p-4">التاريخ</th>
-                <th className="p-4">عدد الأصناف</th>
-                <th className="p-4">الحالة</th>
-                <th className="p-4 text-left">إجمالي الفاتورة</th>
+                <th className="px-3.5 py-2.5">رقم الفاتورة</th>
+                <th className="px-3.5 py-2.5">المورد</th>
+                <th className="px-3.5 py-2.5">التاريخ</th>
+                <th className="px-3.5 py-2.5">عدد الأصناف</th>
+                <th className="px-3.5 py-2.5">الحالة</th>
+                <th className="px-3.5 py-2.5 text-left">إجمالي الفاتورة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {purchases.map(pur => (
-                <tr key={pur.id} className={`hover:bg-slate-50/50 ${pur.status === 'voided' ? 'opacity-50 grayscale' : ''}`}>
-                  <td className="p-4 font-bold text-slate-900">{pur.purchaseNumber}</td>
-                  <td className="p-4 font-medium text-slate-800">{pur.supplierName}</td>
-                  <td className="p-4 text-slate-500">{pur.date}</td>
-                  <td className="p-4 text-slate-600">{pur.items.length} أصناف</td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                <tr key={pur.id} className={`hover:bg-blue-50/30 even:bg-slate-50/40 transition-colors ${pur.status === 'voided' ? 'opacity-50 grayscale' : ''}`}>
+                  <td className="px-3.5 py-2.5 font-bold text-slate-900 font-mono-numbers">{pur.purchaseNumber}</td>
+                  <td className="px-3.5 py-2.5 font-bold text-slate-800">{pur.supplierName}</td>
+                  <td className="px-3.5 py-2.5 text-slate-500 font-mono-numbers">{pur.date}</td>
+                  <td className="px-3.5 py-2.5 text-slate-600 font-mono-numbers">{pur.items.length} أصناف</td>
+                  <td className="px-3.5 py-2.5">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                       pur.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
                       pur.status === 'pending' ? 'bg-amber-100 text-amber-800' :
                       'bg-rose-100 text-rose-800'
@@ -151,16 +151,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       {pur.status === 'paid' ? 'مسددة' : pur.status === 'pending' ? 'آجل' : 'مرتجع/ملغي'}
                     </span>
                   </td>
-                  <td className="p-4 text-left font-extrabold text-blue-600">
+                  <td className="px-3.5 py-2.5 text-left font-black text-blue-600 font-mono-numbers">
                     <div className="flex items-center justify-end gap-3">
                       <span>ج.م {pur.total.toLocaleString()}</span>
                       {pur.status !== 'voided' && (
                         <button
                           onClick={() => onVoidPurchase(pur.id)}
-                          className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                          className="p-1 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
                           title="إرجاع المشتريات / إلغاء الفاتورة"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>

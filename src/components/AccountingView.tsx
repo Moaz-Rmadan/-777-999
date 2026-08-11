@@ -158,45 +158,45 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ entries }) => {
                     />
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-right">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider">
-                        <th className="p-4">التاريخ</th>
-                        <th className="p-4">رقم القيد</th>
-                        <th className="p-4">البيان / الوصف</th>
-                        <th className="p-4">الحساب</th>
-                        <th className="p-4 text-left">مدين (Debit)</th>
-                        <th className="p-4 text-left">دائن (Credit)</th>
+                <div className="overflow-x-auto max-h-[580px] scrollbar-thin">
+                  <table className="w-full text-right border-collapse">
+                    <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs text-slate-700 text-[11px] font-black uppercase tracking-wider z-10 border-b border-slate-200 select-none">
+                      <tr>
+                        <th className="px-3.5 py-2.5">التاريخ</th>
+                        <th className="px-3.5 py-2.5">رقم القيد</th>
+                        <th className="px-3.5 py-2.5">البيان / الوصف</th>
+                        <th className="px-3.5 py-2.5">الحساب</th>
+                        <th className="px-3.5 py-2.5 text-left">مدين (Debit)</th>
+                        <th className="px-3.5 py-2.5 text-left">دائن (Credit)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredEntries.map(entry => (
-                        <tr key={entry.id} className="hover:bg-slate-50/50 text-xs transition-colors">
-                          <td className="p-4 text-slate-500 whitespace-nowrap font-mono-numbers">{new Date(entry.date).toLocaleString('ar-EG')}</td>
-                          <td className="p-4 font-mono-numbers text-slate-400">#{entry.id.split('-')[2] || entry.id}</td>
-                          <td className="p-4 font-bold text-slate-900">{entry.description}</td>
-                          <td className="p-4">
-                            <span className="px-2 py-1 bg-slate-100 rounded-lg font-black text-[10px]">
+                        <tr key={entry.id} className="hover:bg-emerald-50/30 even:bg-slate-50/40 text-xs transition-colors">
+                          <td className="px-3.5 py-2.5 text-slate-500 whitespace-nowrap font-mono-numbers">{new Date(entry.date).toLocaleString('ar-EG')}</td>
+                          <td className="px-3.5 py-2.5 font-mono-numbers text-slate-400">#{entry.id.split('-')[2] || entry.id}</td>
+                          <td className="px-3.5 py-2.5 font-bold text-slate-900">{entry.description}</td>
+                          <td className="px-3.5 py-2.5">
+                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-md font-black text-[10px]">
                               {ACCOUNT_NAMES[entry.account] || entry.account}
                             </span>
                           </td>
-                          <td className="p-4 text-left font-black text-emerald-600 font-mono-numbers">
+                          <td className="px-3.5 py-2.5 text-left font-black text-emerald-600 font-mono-numbers">
                             {entry.debit > 0 ? `ج.م ${entry.debit.toLocaleString()}` : '-'}
                           </td>
-                          <td className="p-4 text-left font-black text-rose-600 font-mono-numbers">
+                          <td className="px-3.5 py-2.5 text-left font-black text-rose-600 font-mono-numbers">
                             {entry.credit > 0 ? `ج.م ${entry.credit.toLocaleString()}` : '-'}
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-slate-900 text-white font-black text-xs">
+                    <tfoot className="sticky bottom-0 bg-slate-900 text-white font-black text-xs z-10">
                       <tr>
-                        <td colSpan={4} className="p-4 text-right">إجمالي القيود المعروضة (Total Balance Check)</td>
-                        <td className="p-4 text-left text-emerald-400 font-mono-numbers">
+                        <td colSpan={4} className="px-3.5 py-2.5 text-right">إجمالي القيود المعروضة (Total Balance Check)</td>
+                        <td className="px-3.5 py-2.5 text-left text-emerald-400 font-mono-numbers">
                           ج.م {filteredEntries.reduce((s, e) => s + e.debit, 0).toLocaleString()}
                         </td>
-                        <td className="p-4 text-left text-rose-400 font-mono-numbers">
+                        <td className="px-3.5 py-2.5 text-left text-rose-400 font-mono-numbers">
                           ج.م {filteredEntries.reduce((s, e) => s + e.credit, 0).toLocaleString()}
                         </td>
                       </tr>

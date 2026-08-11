@@ -17,6 +17,7 @@ import {
   RotateCcw,
   DoorClosed,
   Volume2,
+  VolumeX,
   Printer,
   Sparkles,
   Keyboard,
@@ -29,7 +30,12 @@ import {
   Store,
   Clock,
   User as UserIcon,
-  HelpCircle
+  HelpCircle,
+  Maximize2,
+  Minimize2,
+  Zap,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 interface PosViewProps {
@@ -77,6 +83,15 @@ export const PosView: React.FC<PosViewProps> = ({
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanSuccessToast, setScanSuccessToast] = useState<{ show: boolean; message: string; isError?: boolean } | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [isStandaloneMode, setIsStandaloneMode] = useState<boolean>(false);
+  const [currentTimeStr, setCurrentTimeStr] = useState<string>(() => new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimeStr(new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -369,6 +384,54 @@ export const PosView: React.FC<PosViewProps> = ({
     playBeep(true);
   };
 
+  // Instant 1-click Cash Sale
+  const handleQuickCashCheckout = () => {
+    if (cart.length === 0) {
+      alert('السلة فارغة. أضف أصنافاً أولاً!');
+      return;
+    }
+
+    const newInvoiceId = 'inv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+    const invoiceOpId = `op-inv-${newInvoiceId}`;
+
+    const newInvoice: Invoice = {
+      id: newInvoiceId,
+      operationId: invoiceOpId,
+      invoiceNumber: 'INV-' + Math.floor(1000 + Math.random() * 9000),
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      items: cart.map(i => ({
+        productId: i.product.id,
+        productName: i.product.name,
+        buyPrice: i.product.buyPrice,
+        sellPrice: i.product.sellPrice,
+        quantity: i.quantity,
+        total: i.product.sellPrice * i.quantity
+      })),
+      subtotal,
+      discount: calculatedDiscount,
+      tax: parseFloat(tax.toFixed(2)),
+      total: parseFloat(finalTotal.toFixed(2)),
+      paymentMethod: 'cash',
+      cashierName: currentUser.name,
+      paidAmount: parseFloat(finalTotal.toFixed(2)),
+      changeAmount: 0,
+      isOffline: !isOnline
+    };
+
+    cart.forEach(item => {
+      updateProductStock(item.product.id, -item.quantity, `op-stock-${newInvoiceId}-${item.product.id}`);
+    });
+
+    onCompleteSale(newInvoice);
+    setLastInvoice(newInvoice);
+    setCart([]);
+    setDiscountAmount(0);
+    setPaidAmount('');
+    playBeep(true);
+    setScanSuccessToast({ show: true, message: `⚡ تم تسديد الفاتورة كاش فورياً! [${newInvoice.invoiceNumber}]` });
+    setTimeout(() => setScanSuccessToast(null), 2500);
+  };
+
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))];
   const filteredProducts = products.filter(p => {
     const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (p.barcode || '').includes(searchQuery);
@@ -377,7 +440,7 @@ export const PosView: React.FC<PosViewProps> = ({
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 space-y-4 animate-fadeIn" dir="rtl">
+    <div className={isStandaloneMode ? "fixed inset-0 z-50 bg-slate-950 p-2 sm:p-4 overflow-y-auto space-y-3 flex flex-col justify-between text-right animate-fadeIn" : "max-w-7xl mx-auto px-2 sm:px-4 py-4 space-y-4 animate-fadeIn"} dir="rtl">
       
       {/* Toast Notification */}
       {scanSuccessToast && (
@@ -401,23 +464,32 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       ) : (
         <>
-          {/* HEADER BAR: الفرع الرئيسي - الوردية - الكاشير */}
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-6 text-xs font-bold">
+          {/* HEADER BAR: الفرع الرئيسي - الوردية - الكاشير - الوضع المستقل */}
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-3 border border-slate-800">
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
               <div className="flex items-center gap-2">
                 <Store className="w-4 h-4 text-emerald-400" />
-                <span className="text-slate-300">الفرع:</span>
+                <span className="text-slate-400">الفرع:</span>
                 <span className="font-black text-white">{settings?.storeName || 'الفرع الرئيسي'}</span>
               </div>
-              <div className="flex items-center gap-2 border-r border-slate-800 pr-4">
+              <div className="flex items-center gap-2 border-r border-slate-800 pr-3">
                 <Clock className="w-4 h-4 text-amber-400" />
-                <span className="text-slate-300">الوردية:</span>
+                <span className="text-slate-400">الوردية:</span>
                 <span className="font-black text-amber-300 font-mono-numbers">#{activeShift?.shiftNumber || '1024'}</span>
               </div>
-              <div className="flex items-center gap-2 border-r border-slate-800 pr-4">
+              <div className="flex items-center gap-2 border-r border-slate-800 pr-3">
                 <UserIcon className="w-4 h-4 text-blue-400" />
-                <span className="text-slate-300">الكاشير:</span>
+                <span className="text-slate-400">الكاشير:</span>
                 <span className="font-black text-white">{currentUser.name}</span>
+              </div>
+              <div className="hidden md:flex items-center gap-2 border-r border-slate-800 pr-3">
+                <span className="font-mono text-emerald-400 font-bold bg-slate-800 px-2.5 py-1 rounded-xl text-xs border border-slate-700/80">
+                  {currentTimeStr}
+                </span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded-xl text-[11px] font-bold text-slate-300 border border-slate-700/80">
+                {isOnline ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> : <WifiOff className="w-3.5 h-3.5 text-rose-400" />}
+                <span>{isOnline ? 'متصل بالشبكة' : 'أوفلاين (مستقل)'}</span>
               </div>
             </div>
 
@@ -438,15 +510,37 @@ export const PosView: React.FC<PosViewProps> = ({
                 title="مرتجع (F9)"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-                <span>مرتجع (F9)</span>
+                <span className="hidden sm:inline">مرتجع (F9)</span>
+              </button>
+
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all border border-slate-700"
+                title={soundEnabled ? 'إيقاف الأصوات' : 'تفعيل الأصوات'}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
               </button>
 
               <button
                 onClick={() => setShowShortcutsHelp(true)}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all border border-slate-700"
                 title="دليل الاختصارات السريعة"
               >
                 <HelpCircle className="w-4 h-4" />
+              </button>
+
+              {/* STANDALONE POS FULLSCREEN TOGGLE */}
+              <button
+                onClick={() => setIsStandaloneMode(!isStandaloneMode)}
+                className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-95 touch-manipulation select-none ${
+                  isStandaloneMode 
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white' 
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                }`}
+                title="واجهة كاشير مستقلة سريعة في الشاشة الكاملة"
+              >
+                {isStandaloneMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                <span>{isStandaloneMode ? 'خروج من POS' : 'واجهة مستقلة (شاشة كاملة)'}</span>
               </button>
             </div>
           </div>
@@ -728,20 +822,31 @@ export const PosView: React.FC<PosViewProps> = ({
                   </button>
                 </div>
 
-                {/* Main Big Checkout Button - Touch Screen Optimized */}
-                <button
-                  onClick={() => {
-                    if (cart.length === 0) alert('السلة فارغة. أضف أصنافاً أولاً!');
-                    else {
-                      setPaidAmount(finalTotal.toString());
-                      setShowCheckoutModal(true);
-                    }
-                  }}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-base font-black shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-95 touch-manipulation select-none"
-                >
-                  <Banknote className="w-5 h-5" />
-                  <span>دفع وتسديد الفاتورة (F8)</span>
-                </button>
+                {/* Main Big Checkout Buttons - Fast POS Execution */}
+                <div className="space-y-2">
+                  <button
+                    onClick={handleQuickCashCheckout}
+                    className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 rounded-2xl text-xs font-black shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 touch-manipulation select-none border border-amber-300"
+                    title="تسديد كاش فوري بنقرة واحدة بالمبلغ المضبوط"
+                  >
+                    <Zap className="w-4 h-4 text-slate-950 fill-current" />
+                    <span>دفع كاش سريع بنقرة واحدة (Quick Cash)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (cart.length === 0) alert('السلة فارغة. أضف أصنافاً أولاً!');
+                      else {
+                        setPaidAmount(finalTotal.toString());
+                        setShowCheckoutModal(true);
+                      }
+                    }}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-black shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-95 touch-manipulation select-none"
+                  >
+                    <Banknote className="w-5 h-5" />
+                    <span>دفع وتفاصيل التسديد (F8)</span>
+                  </button>
+                </div>
 
               </div>
 

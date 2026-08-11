@@ -155,44 +155,44 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
 
       {/* History Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="text-sm font-bold text-slate-900">سجل الورديات السابقة</h3>
-          <span className="text-[10px] text-slate-500">تم عرض {displayShifts.length} وردية</span>
+          <span className="text-[10px] text-slate-500 font-bold">تم عرض {displayShifts.length} وردية</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+        <div className="overflow-x-auto max-h-[580px] scrollbar-thin">
+          <table className="w-full text-right text-xs border-collapse">
+            <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs text-slate-700 border-b border-slate-200 font-black z-10 select-none">
               <tr>
-                <th className="p-4">الكاشير</th>
-                <th className="p-4">وقت البدء</th>
-                <th className="p-4">وقت الإغلاق</th>
-                <th className="p-4">المتوقع</th>
-                <th className="p-4">الفعلي</th>
-                <th className="p-4">الفرق (عجز/زيادة)</th>
-                <th className="p-4">الحالة</th>
+                <th className="px-3.5 py-2.5">الكاشير</th>
+                <th className="px-3.5 py-2.5">وقت البدء</th>
+                <th className="px-3.5 py-2.5">وقت الإغلاق</th>
+                <th className="px-3.5 py-2.5">المتوقع</th>
+                <th className="px-3.5 py-2.5">الفعلي</th>
+                <th className="px-3.5 py-2.5">الفرق (عجز/زيادة)</th>
+                <th className="px-3.5 py-2.5">الحالة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {displayShifts.filter(s => s.status === 'closed').map(s => (
-                <tr key={s.id} className="hover:bg-slate-50/50">
-                  <td className="p-4 font-bold text-slate-900">{s.cashierName}</td>
-                  <td className="p-4 text-slate-500">{new Date(s.startTime).toLocaleTimeString('ar-EG')}</td>
-                  <td className="p-4 text-slate-500">{s.endTime ? new Date(s.endTime).toLocaleTimeString('ar-EG') : '-'}</td>
-                  <td className="p-4 font-bold">ج.م {s.expectedCash}</td>
-                  <td className="p-4 font-bold">ج.م {s.actualCash}</td>
-                  <td className="p-4">
+                <tr key={s.id} className="hover:bg-indigo-50/30 even:bg-slate-50/40 transition-colors">
+                  <td className="px-3.5 py-2.5 font-bold text-slate-900">{s.cashierName}</td>
+                  <td className="px-3.5 py-2.5 text-slate-500 font-mono-numbers">{new Date(s.startTime).toLocaleTimeString('ar-EG')}</td>
+                  <td className="px-3.5 py-2.5 text-slate-500 font-mono-numbers">{s.endTime ? new Date(s.endTime).toLocaleTimeString('ar-EG') : '-'}</td>
+                  <td className="px-3.5 py-2.5 font-bold font-mono-numbers">ج.م {s.expectedCash}</td>
+                  <td className="px-3.5 py-2.5 font-bold font-mono-numbers">ج.م {s.actualCash}</td>
+                  <td className="px-3.5 py-2.5 font-mono-numbers">
                     {s.difference !== undefined && (
-                      <span className={`font-black px-2 py-1 rounded-lg ${
+                      <span className={`font-black px-2 py-0.5 rounded-md ${
                         s.difference === 0 ? 'text-slate-400' :
-                        s.difference > 0 ? 'text-emerald-600 bg-emerald-50' :
-                        'text-rose-600 bg-rose-50'
+                        s.difference > 0 ? 'text-emerald-600 bg-emerald-50 border border-emerald-200' :
+                        'text-rose-600 bg-rose-50 border border-rose-200'
                       }`}>
                         {s.difference > 0 ? '+' : ''}{s.difference}
                       </span>
                     )}
                   </td>
-                  <td className="p-4">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">مغلقة</span>
+                  <td className="px-3.5 py-2.5">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">مغلقة</span>
                   </td>
                 </tr>
               ))}
