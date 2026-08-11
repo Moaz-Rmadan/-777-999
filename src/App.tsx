@@ -38,6 +38,7 @@ import { SettingsView } from './components/SettingsView';
 import { HrView } from './components/HrView';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { ConfirmModal } from './components/ConfirmModal';
+import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
 
 function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {
@@ -1110,16 +1111,7 @@ export default function App() {
   const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
 
   if (isFirebaseLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 text-slate-800 font-sans" dir="rtl">
-        <div className="relative flex items-center justify-center">
-          <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
-          <div className="absolute text-emerald-600 font-bold text-xs">POS</div>
-        </div>
-        <h2 className="mt-6 text-xl font-semibold text-slate-800">جاري مزامنة قاعدة البيانات السحابية...</h2>
-        <p className="mt-2 text-sm text-slate-500">يرجى الانتظار بينما نقوم بتهيئة وتحديث البيانات السحابية (Firebase)</p>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (!currentUser) {
