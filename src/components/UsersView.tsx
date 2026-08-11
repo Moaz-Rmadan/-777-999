@@ -57,6 +57,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<UserRole>('cashier');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   // Matrix edit indicator
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -67,6 +68,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername('');
     setRole('cashier');
     setEmail('');
+    setPassword('');
     setShowModal(true);
   };
 
@@ -76,6 +78,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername(user.username);
     setRole(user.role);
     setEmail(user.email || '');
+    setPassword(user.password || '');
     setShowModal(true);
   };
 
@@ -89,7 +92,8 @@ export const UsersView: React.FC<UsersViewProps> = ({
         name,
         username,
         role,
-        email: email || undefined
+        email: email || undefined,
+        password: password || undefined
       });
     } else {
       const newUser: User = {
@@ -97,7 +101,8 @@ export const UsersView: React.FC<UsersViewProps> = ({
         name,
         username,
         role,
-        email: email || undefined
+        email: email || undefined,
+        password: password || undefined
       };
       onAddUser(newUser);
     }
@@ -108,6 +113,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername('');
     setRole('cashier');
     setEmail('');
+    setPassword('');
   };
 
   // Toggle permission in matrix
@@ -440,6 +446,18 @@ export const UsersView: React.FC<UsersViewProps> = ({
                     placeholder="مثال: a_abdullah"
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 font-bold font-mono"
                   />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">كلمة المرور / رمز PIN للدخول المباشر *</label>
+                  <input
+                    type="text"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="أدخل كلمة مرور أو رمز PIN"
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 font-bold"
+                  />
+                  <p className="text-[9px] text-slate-400 mt-1 font-bold">يتم استخدامها للدخول المباشر والسريع للموظف دون الحاجة لحساب Google.</p>
                 </div>
                 <div>
                   <label className="block text-slate-600 font-bold mb-1">بريد Google الإلكتروني للمزامنة مع Firebase Auth (اختياري)</label>

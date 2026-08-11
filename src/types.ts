@@ -259,6 +259,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   email?: string;
+  password?: string;
 }
 
 export interface AuditLogEntry {

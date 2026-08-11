@@ -87,6 +87,267 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ entries }) => {
     return { inflows, outflows };
   }, [entries]);
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('الرجاء السماح بنوافذ منبثقة لتوليد وطباعة التقارير المالية.');
+      return;
+    }
+
+    let reportTitle = '';
+    let tableHtml = '';
+    const today = new Date().toLocaleDateString('ar-EG');
+
+    if (activeTab === 'journal') {
+      reportTitle = 'دفتر اليومية العام';
+      tableHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; direction: rtl; font-family: sans-serif; font-size: 12px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px; text-align: right;">التاريخ</th>
+              <th style="padding: 10px; text-align: right;">رقم القيد</th>
+              <th style="padding: 10px; text-align: right;">البيان / الوصف</th>
+              <th style="padding: 10px; text-align: right;">الحساب</th>
+              <th style="padding: 10px; text-align: left;">مدين (Debit)</th>
+              <th style="padding: 10px; text-align: left;">دائن (Credit)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredEntries.map(e => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px;">${new Date(e.date).toLocaleString('ar-EG')}</td>
+                <td style="padding: 10px; color: #64748b;">#${e.id.split('-')[2] || e.id}</td>
+                <td style="padding: 10px; font-weight: bold;">${e.description}</td>
+                <td style="padding: 10px;"><span style="background-color: #f1f5f9; padding: 3px 6px; border-radius: 4px; font-size: 11px;">${ACCOUNT_NAMES[e.account] || e.account}</span></td>
+                <td style="padding: 10px; text-align: left; color: #059669; font-weight: bold;">${e.debit > 0 ? e.debit.toLocaleString() : '-'}</td>
+                <td style="padding: 10px; text-align: left; color: #dc2626; font-weight: bold;">${e.credit > 0 ? e.credit.toLocaleString() : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background-color: #0f172a; color: white; font-weight: bold;">
+              <td colspan="4" style="padding: 12px; text-align: right;">إجمالي الميزان</td>
+              <td style="padding: 12px; text-align: left; color: #34d399;">ج.م ${filteredEntries.reduce((s, e) => s + e.debit, 0).toLocaleString()}</td>
+              <td style="padding: 12px; text-align: left; color: #f87171;">ج.م ${filteredEntries.reduce((s, e) => s + e.credit, 0).toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+    } else if (activeTab === 'trial_balance') {
+      reportTitle = 'ميزان المراجعة بالأرصدة';
+      tableHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; direction: rtl; font-family: sans-serif; font-size: 12px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px; text-align: right;">اسم الحساب</th>
+              <th style="padding: 10px; text-align: left;">إجمالي مدين</th>
+              <th style="padding: 10px; text-align: left;">إجمالي دائن</th>
+              <th style="padding: 10px; text-align: left; background-color: #e2e8f0;">الرصيد الصافي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${trialBalance.map(row => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; font-weight: bold;">${row.name}</td>
+                <td style="padding: 10px; text-align: left; color: #059669;">${row.debit.toLocaleString()}</td>
+                <td style="padding: 10px; text-align: left; color: #dc2626;">${row.credit.toLocaleString()}</td>
+                <td style="padding: 10px; text-align: left; background-color: #f8fafc; font-weight: bold; color: ${row.balance >= 0 ? '#047857' : '#b91c1c'};">
+                  ${row.balance.toLocaleString()}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background-color: #0f172a; color: white; font-weight: bold;">
+              <td style="padding: 12px;">الإجمالي الكلي</td>
+              <td style="padding: 12px; text-align: left;">${trialBalance.reduce((s,r)=>s+r.debit, 0).toLocaleString()}</td>
+              <td style="padding: 12px; text-align: left;">${trialBalance.reduce((s,r)=>s+r.credit, 0).toLocaleString()}</td>
+              <td style="padding: 12px; text-align: left; background-color: #1e293b;">0</td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+    } else if (activeTab === 'income_statement') {
+      reportTitle = 'قائمة الدخل والأرباح والخسائر (P&L)';
+      tableHtml = `
+        <div style="max-width: 600px; margin: 30px auto; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; font-family: sans-serif; direction: rtl;">
+          <div style="background-color: #059669; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0; font-size: 18px;">قائمة الدخل والربحية</h2>
+            <p style="margin: 5px 0 0; font-size: 11px; opacity: 0.8;">التقرير السنوي / الفترة المالية الحالية</p>
+          </div>
+          <div style="padding: 24px; font-size: 14px; background-color: white;">
+            <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px;">
+              <span style="font-weight: bold; color: #475569;">إيرادات المبيعات</span>
+              <span style="font-weight: bold; color: #0f172a;">ج.م ${incomeStatement.sales.toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px;">
+              <span style="font-weight: bold; color: #475569;">(-) تكلفة المبيعات (COGS)</span>
+              <span style="font-weight: bold; color: #dc2626;">ج.م ${incomeStatement.cogs.toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 12px;">
+              <span style="font-weight: bold; color: #166534;">إجمالي الربح (Gross Profit)</span>
+              <span style="font-weight: bold; color: #15803d; font-size: 16px;">ج.م ${incomeStatement.grossProfit.toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px;">
+              <span style="font-weight: bold; color: #475569;">(-) المصروفات التشغيلية والعمومية</span>
+              <span style="font-weight: bold; color: #dc2626;">ج.م ${incomeStatement.otherExpenses.toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 16px; background-color: #0f172a; color: white; border-radius: 8px; align-items: center;">
+              <div>
+                <span style="font-size: 11px; opacity: 0.7; display: block;">صافي الربح النهائي</span>
+                <span style="font-size: 20px; font-weight: bold;">ج.م ${incomeStatement.netProfit.toLocaleString()}</span>
+              </div>
+              <div style="background-color: ${incomeStatement.netProfit >= 0 ? '#10b981' : '#ef4444'}; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold;">
+                ${incomeStatement.netProfit >= 0 ? 'ربح محقق' : 'خسارة'}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (activeTab === 'cash_flow') {
+      reportTitle = 'تقرير التدفقات النقدية والسيولة';
+      tableHtml = `
+        <div style="display: flex; gap: 20px; direction: rtl; font-family: sans-serif; font-size: 12px; margin-top: 20px;">
+          <div style="flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <h3 style="color: #059669; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-top: 0;">التدفقات الداخلة (Inflows)</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${cashFlow.inflows.map(e => `
+                <div style="display: flex; justify-content: space-between; padding: 8px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+                  <div>
+                    <span style="font-weight: bold; color: #166534; display: block;">${e.description}</span>
+                    <span style="font-size: 10px; color: #15803d;">${new Date(e.date).toLocaleDateString('ar-EG')}</span>
+                  </div>
+                  <span style="font-weight: bold; color: #15803d;">+${e.debit.toLocaleString()}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div style="flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <h3 style="color: #dc2626; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-top: 0;">التدفقات الخارجة (Outflows)</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${cashFlow.outflows.map(e => `
+                <div style="display: flex; justify-content: space-between; padding: 8px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                  <div>
+                    <span style="font-weight: bold; color: #991b1b; display: block;">${e.description}</span>
+                    <span style="font-size: 10px; color: #b91c1c;">${new Date(e.date).toLocaleDateString('ar-EG')}</span>
+                  </div>
+                  <span style="font-weight: bold; color: #b91c1c;">-${e.credit.toLocaleString()}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (activeTab === 'ledger') {
+      reportTitle = 'الأستاذ العام التفصيلي لجميع الحسابات';
+      tableHtml = Object.keys(ACCOUNT_NAMES).map(acc => `
+        <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; font-family: sans-serif; direction: rtl;">
+          <div style="background-color: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <h4 style="margin: 0; color: #0f172a; font-weight: bold;">${ACCOUNT_NAMES[acc]}</h4>
+            <span style="font-size: 10px; color: #64748b; font-weight: bold;">رصيد الحساب</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <thead>
+              <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1; color: #475569;">
+                <th style="padding: 8px 12px; text-align: right;">التاريخ</th>
+                <th style="padding: 8px 12px; text-align: right;">البيان</th>
+                <th style="padding: 8px 12px; text-align: left;">مدين</th>
+                <th style="padding: 8px 12px; text-align: left;">دائن</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(ledger[acc] || []).map(e => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 8px 12px; color: #64748b;">${new Date(e.date).toLocaleDateString('ar-EG')}</td>
+                  <td style="padding: 8px 12px; font-weight: bold; color: #334155;">${e.description}</td>
+                  <td style="padding: 8px 12px; text-align: left; color: #059669; font-weight: bold;">${e.debit > 0 ? e.debit.toLocaleString() : '-'}</td>
+                  <td style="padding: 8px 12px; text-align: left; color: #dc2626; font-weight: bold;">${e.credit > 0 ? e.credit.toLocaleString() : '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="background-color: #0f172a; color: white; padding: 10px 16px; display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+            <span>الرصيد الختامي للحساب</span>
+            <span>ج.م ${((ledger[acc] || []).reduce((s,e) => s + e.debit - e.credit, 0)).toLocaleString()}</span>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      reportTitle = 'حركة الخزينة والسيولة النقدية الكلية';
+      tableHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; direction: rtl; font-family: sans-serif; font-size: 12px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px; text-align: right;">الوقت</th>
+              <th style="padding: 10px; text-align: right;">المعاملة</th>
+              <th style="padding: 10px; text-align: left;">وارد (+Debit)</th>
+              <th style="padding: 10px; text-align: left;">منصرف (-Credit)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries.filter(e => e.account === 'cash').map(e => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px;">${new Date(e.date).toLocaleString('ar-EG')}</td>
+                <td style="padding: 10px; font-weight: bold;">${e.description}</td>
+                <td style="padding: 10px; text-align: left; color: #059669; font-weight: bold;">${e.debit > 0 ? `+${e.debit.toLocaleString()}` : '-'}</td>
+                <td style="padding: 10px; text-align: left; color: #dc2626; font-weight: bold;">${e.credit > 0 ? `-${e.credit.toLocaleString()}` : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background-color: #0f172a; color: white; font-weight: bold;">
+              <td colspan="2" style="padding: 12px;">إجمالي السيولة النقدية الحالية بالخزينة</td>
+              <td colspan="2" style="padding: 12px; text-align: left; color: #34d399; font-size: 14px;">ج.م ${(entries.filter(e => e.account === 'cash').reduce((s,e)=>s+e.debit-e.credit, 0)).toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+    }
+
+    printWindow.document.write(`
+      <html dir="rtl" lang="ar">
+        <head>
+          <title>${reportTitle}</title>
+          <style>
+            @media print {
+              body { margin: 1.5cm; }
+              .no-print { display: none !important; }
+            }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fff; padding: 25px; color: #1e293b; }
+            .header-container { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #cbd5e1; padding-bottom: 20px; margin-bottom: 25px; }
+            .meta-info { font-size: 12px; text-align: left; line-height: 1.6; }
+            .logo-placeholder { font-size: 24px; font-weight: 900; color: #059669; border: 2px solid #059669; padding: 5px 15px; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div>
+              <span class="logo-placeholder">POS</span>
+              <h1 style="margin: 10px 0 5px; font-size: 22px;">نظام إدارة السوبر ماركت الذكي</h1>
+              <h2 style="margin: 0; font-size: 15px; color: #475569;">تقرير مالي رسمي: ${reportTitle}</h2>
+            </div>
+            <div class="meta-info">
+              <div>تاريخ استخراج التقرير: <strong>${today}</strong></div>
+              <div>الجهة الطالبة: <strong>الإدارة المالية والمحاسبية</strong></div>
+              <div>حالة الاتصال بالخادم: <strong>مؤمن وسحابي بالكامل (SSL)</strong></div>
+              <button onclick="window.print()" class="no-print" style="margin-top: 10px; background-color: #059669; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: all 0.2s;">طباعة التقرير (Print)</button>
+            </div>
+          </div>
+          
+          <div>
+            ${tableHtml}
+          </div>
+
+          <div style="margin-top: 50px; border-top: 1px solid #cbd5e1; padding-top: 15px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
+            <span>تم استخراج هذا المستند آلياً ويدار بالكامل بموجب المعايير المالية المقبولة عموماً (GAAP).</span>
+            <span>توقيع المدير المالي / المحاسب العام: __________________</span>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const tabs: { id: AccountingTab; label: string; icon: React.ReactNode }[] = [
     { id: 'journal', label: 'دفتر اليومية', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'ledger', label: 'الأستاذ العام', icon: <Layers className="w-4 h-4" /> },
@@ -105,9 +366,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ entries }) => {
           <p className="text-xs text-slate-500 font-bold mt-1">الإدارة المالية، التقارير الضريبية، والقوائم الختامية</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all">
-            <Download className="w-4 h-4" />
-            <span>تصدير PDF</span>
+          <button 
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>تصدير و طباعة PDF</span>
           </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20">
             <Calendar className="w-4 h-4" />

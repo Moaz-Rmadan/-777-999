@@ -4,8 +4,8 @@
   body {
     font-family: 'Cairo', sans-serif;
     font-variant-numeric: tabular-nums;
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #f6f5f2; /* Premium warm stone neutral, very easy on the eyes */
+    color: #1e293b;
     -webkit-font-smoothing: antialiased;
   }
 }

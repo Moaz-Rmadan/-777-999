@@ -46,6 +46,7 @@ interface PosViewProps {
   currentUser: User;
   activeShift: Shift | undefined;
   settings?: SystemSettings;
+  onOpenShift?: (openingBalance: number) => void;
 }
 
 export const PosView: React.FC<PosViewProps> = ({
@@ -55,9 +56,11 @@ export const PosView: React.FC<PosViewProps> = ({
   updateProductStock,
   currentUser,
   activeShift,
-  settings
+  settings,
+  onOpenShift
 }) => {
   const isShiftOpen = !!activeShift;
+  const [openingBalanceInput, setOpeningBalanceInput] = useState<string>('0');
   const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'cart'>('catalog');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [heldCarts, setHeldCarts] = useState<{ id: string; name: string; cart: CartItem[]; timestamp: string }[]>([]);
@@ -455,12 +458,53 @@ export const PosView: React.FC<PosViewProps> = ({
       )}
 
       {!isShiftOpen ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 text-slate-400">
+        <div className="max-w-md mx-auto my-12 bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-600 mx-auto border border-amber-200">
             <DoorClosed className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-black text-slate-900">الوردية مغلقة حالياً</h2>
-          <p className="text-xs text-slate-500 mt-1 mb-6 font-bold">يرجى فتح وردية جديدة لبدء عمليات البيع واستقبال الفواتير</p>
+          <h2 className="text-lg font-black text-slate-900">بدء وردية جديدة وتأمين الخزينة</h2>
+          <p className="text-xs text-slate-500 mt-2 mb-6 font-bold leading-relaxed">
+            مرحباً <span className="text-slate-800">{currentUser.name}</span>. لمنع العجز أو الأخطاء في حسابات الصندوق، يرجى إدخال الرصيد النقدي المتواجد في الدرج الآن (العهدة الافتتاحية) لبدء العمل.
+          </p>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (onOpenShift) {
+                onOpenShift(parseFloat(openingBalanceInput) || 0);
+              }
+            }}
+            className="space-y-4 text-right"
+          >
+            <div className="space-y-1.5">
+              <label className="block text-xs font-black text-slate-600 mr-0.5">النقدية الافتتاحية (ج.م) *</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Banknote className="h-5 w-5" />
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  autoFocus
+                  placeholder="0.00"
+                  value={openingBalanceInput}
+                  onChange={(e) => setOpeningBalanceInput(e.target.value)}
+                  className="block w-full pr-11 pl-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mr-0.5 font-bold leading-relaxed">
+                * يشمل هذا المبلغ الفكة أو الأموال التي تم استلامها من الوردية السابقة.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              <span>فتح الصندوق والبدء في البيع</span>
+            </button>
+          </form>
         </div>
       ) : (
         <>

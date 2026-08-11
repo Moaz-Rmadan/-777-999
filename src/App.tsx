@@ -1155,6 +1155,7 @@ export default function App() {
             currentUser={currentUser}
             activeShift={activeShift}
             settings={settings}
+            onOpenShift={handleOpenShift}
           />
         )}
         {activeTab === 'accounting' && hasPermission(currentUser, 'accounting', 'view', permissionMatrix) && (
