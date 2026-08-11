@@ -244,6 +244,7 @@ export type ModuleName =
   | 'shifts' 
   | 'audit_log' 
   | 'inventory_reports' 
+  | 'stock_audit'
   | 'accounting'
   | 'hr'
   | 'requirements'
@@ -266,7 +267,7 @@ export interface AuditLogEntry {
   userName: string;
   userRole: UserRole;
   action: string;
-  entityType: 'product' | 'user' | 'invoice' | 'expense' | 'supplier' | 'customer' | 'shift' | 'employee' | 'payroll';
+  entityType: 'product' | 'user' | 'invoice' | 'expense' | 'supplier' | 'customer' | 'shift' | 'employee' | 'payroll' | 'inventory';
   entityId: string;
   timestamp: string;
   before?: any;
@@ -311,6 +312,7 @@ export type ActiveTab =
   | 'shifts'
   | 'audit_log'
   | 'inventory_reports'
+  | 'stock_audit'
   | 'accounting'
   | 'hr'
   | 'settings';
@@ -367,5 +369,45 @@ export interface SystemSettings {
   scaleBarcodePrefix?: string;
   compactUiMode?: boolean;
   themeColor?: 'slate' | 'emerald' | 'indigo' | 'amber';
+}
+
+export interface StockAuditItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  category: string;
+  unit: string;
+  buyPrice: number;
+  sellPrice: number;
+  systemStock: number;
+  actualStock: number;
+  variance: number;
+  costDifference: number;
+  sellDifference: number;
+  notes?: string;
+  status: 'matched' | 'shortage' | 'surplus' | 'pending';
+}
+
+export interface StockAuditSession {
+  id: string;
+  auditNumber: string;
+  title: string;
+  categoryFilter: string;
+  auditorName: string;
+  createdAt: string;
+  completedAt?: string;
+  status: 'in_progress' | 'completed' | 'applied' | 'cancelled';
+  items: StockAuditItem[];
+  totalSystemItems: number;
+  totalAuditedItems: number;
+  totalMatchedItems: number;
+  totalShortageItems: number;
+  totalSurplusItems: number;
+  totalShortageCost: number;
+  totalSurplusCost: number;
+  netCostImpact: number;
+  accuracyRate: number;
+  notes?: string;
+  operationId?: string;
 }
 

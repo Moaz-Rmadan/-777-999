@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement, Employee, AttendanceRecord, PayrollRecord, AdvancePayment } from './types';
+import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement, Employee, AttendanceRecord, PayrollRecord, AdvancePayment, StockAuditSession } from './types';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_SUPPLIERS, 
@@ -12,7 +12,8 @@ import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
   INITIAL_PAYROLLS,
-  INITIAL_ADVANCES
+  INITIAL_ADVANCES,
+  INITIAL_AUDIT_SESSIONS
 } from './mockData';
 import { saveToFirebase, loadFromFirebase, auth, logoutFirebase } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -31,6 +32,7 @@ import { UsersView } from './components/UsersView';
 import { ShiftsView } from './components/ShiftsView';
 import AuditLogView from './components/AuditLogView';
 import InventoryReportsView from './components/InventoryReportsView';
+import { StockAuditView } from './components/StockAuditView';
 import { AccountingView } from './components/AccountingView';
 import { SettingsView } from './components/SettingsView';
 import { HrView } from './components/HrView';
@@ -131,7 +133,18 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
   });
 
+  const [auditSessions, setAuditSessions] = useState<StockAuditSession[]>(() => {
+    const saved = localStorage.getItem('sm_audit_sessions');
+    return saved ? JSON.parse(saved) : INITIAL_AUDIT_SESSIONS;
+  });
+
   // Save to localStorage & Firebase
+  useEffect(() => {
+    localStorage.setItem('sm_audit_sessions', JSON.stringify(auditSessions));
+    if (!isFirebaseLoading) {
+      saveToFirebase('sm_audit_sessions', auditSessions);
+    }
+  }, [auditSessions, isFirebaseLoading]);
   useEffect(() => {
     localStorage.setItem('sm_settings', JSON.stringify(settings));
     if (!isFirebaseLoading) {
@@ -1073,6 +1086,27 @@ export default function App() {
     });
   };
 
+  const handleSaveAuditSession = (session: StockAuditSession, applyToInventory: boolean) => {
+    setAuditSessions(prev => [session, ...prev]);
+    logAction('جلسة جرد جديد', 'inventory', session.id, null, { title: session.title, status: session.status, netCostImpact: session.netCostImpact });
+
+    if (applyToInventory && session.netCostImpact !== 0) {
+      const adjOpId = `op-audit-${session.id}`;
+      if (session.netCostImpact < 0) {
+        logJournalEntry('expense', `عجز جرد مخزني: ${session.title}`, Math.abs(session.netCostImpact), 0, 'expenses', session.id, `${adjOpId}-je-shortage-exp`);
+        logJournalEntry('expense', `عجز جرد مخزني: ${session.title}`, 0, Math.abs(session.netCostImpact), 'inventory_asset', session.id, `${adjOpId}-je-shortage-inv`);
+      } else {
+        logJournalEntry('collection', `زيادة جرد مخزني: ${session.title}`, session.netCostImpact, 0, 'inventory_asset', session.id, `${adjOpId}-je-surplus-inv`);
+        logJournalEntry('collection', `زيادة جرد مخزني: ${session.title}`, 0, session.netCostImpact, 'revenue', session.id, `${adjOpId}-je-surplus-rev`);
+      }
+    }
+  };
+
+  const handleUpdateProductsBatch = (updatedProducts: Product[]) => {
+    setProducts(updatedProducts);
+    logAction('تحديث جماعي للمخزون (تسوية جرد)', 'inventory', 'batch-' + Date.now(), null, { count: updatedProducts.length });
+  };
+
   const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
 
   if (isFirebaseLoading) {
@@ -1144,6 +1178,7 @@ export default function App() {
             canEdit={hasPermission(currentUser, 'inventory', 'edit', permissionMatrix)}
             canDelete={hasPermission(currentUser, 'inventory', 'delete', permissionMatrix)}
             canApprove={hasPermission(currentUser, 'inventory', 'approve', permissionMatrix)}
+            onNavigate={(tab: any) => setActiveTab(tab)}
           />
         )}
         {activeTab === 'purchases' && hasPermission(currentUser, 'purchases', 'view', permissionMatrix) && (
@@ -1238,6 +1273,17 @@ export default function App() {
             products={products}
             invoices={invoices}
             purchases={purchases}
+          />
+        )}
+        {activeTab === 'stock_audit' && hasPermission(currentUser, 'stock_audit', 'view', permissionMatrix) && (
+          <StockAuditView 
+            products={products}
+            auditSessions={auditSessions}
+            currentUser={currentUser}
+            onSaveAuditSession={handleSaveAuditSession}
+            onUpdateProductsBatch={handleUpdateProductsBatch}
+            currencySymbol={settings.currencySymbol}
+            canApprove={hasPermission(currentUser, 'inventory', 'approve', permissionMatrix)}
           />
         )}
         {activeTab === 'settings' && hasPermission(currentUser, 'settings', 'view', permissionMatrix) && (

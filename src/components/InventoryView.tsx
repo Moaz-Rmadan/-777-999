@@ -37,6 +37,7 @@ interface InventoryViewProps {
   canEdit?: boolean;
   canDelete?: boolean;
   canApprove?: boolean;
+  onNavigate?: (tab: any) => void;
 }
 
 type FilterTab = 'all' | 'low' | 'out' | 'active';
@@ -50,6 +51,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   canEdit = true,
   canDelete = true,
   canApprove = true,
+  onNavigate,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -345,6 +347,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         {/* Action Buttons Header Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
           
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('stock_audit')}
+              className="px-4 py-2.5 bg-emerald-900 hover:bg-emerald-950 text-emerald-300 rounded-2xl text-xs font-black border border-emerald-700 flex items-center gap-2 transition-all shadow-sm"
+              title="الانتقال إلى نظام الجرد وتدقيق المخزون الميداني"
+            >
+              <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+              <span>جرد المخزون الفعلي</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowImportModal(true)}
             className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold border border-slate-200 flex items-center gap-2 transition-all"

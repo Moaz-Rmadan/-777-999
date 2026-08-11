@@ -1,4 +1,4 @@
-import { Product, Supplier, Customer, Expense, Invoice, PurchaseInvoice, User, SystemSettings, Employee, AttendanceRecord, PayrollRecord, AdvancePayment } from './types';
+import { Product, Supplier, Customer, Expense, Invoice, PurchaseInvoice, User, SystemSettings, Employee, AttendanceRecord, PayrollRecord, AdvancePayment, StockAuditSession } from './types';
 
 export const INITIAL_EMPLOYEES: Employee[] = [
   { id: 'emp-1', name: 'إبراهيم ممدوح', phone: '01011223344', position: 'مسؤول مبيعات', department: 'المبيعات', baseSalary: 6000, joinDate: '2025-01-10', status: 'active' },
@@ -154,4 +154,61 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   compactUiMode: false,
   themeColor: 'slate'
 };
+
+export const INITIAL_AUDIT_SESSIONS: StockAuditSession[] = [
+  {
+    id: 'aud-101',
+    auditNumber: 'AUD-2026-001',
+    title: 'جرد الربع الثالث - قسم الألبان والمشروبات',
+    categoryFilter: 'ألبان وأجبان',
+    auditorName: 'محمود عبد الفتاح (مدير الجرد)',
+    createdAt: '2026-08-01T10:00:00.000Z',
+    completedAt: '2026-08-01T14:30:00.000Z',
+    status: 'applied',
+    totalSystemItems: 12,
+    totalAuditedItems: 12,
+    totalMatchedItems: 10,
+    totalShortageItems: 1,
+    totalSurplusItems: 1,
+    totalShortageCost: 38.00,
+    totalSurplusCost: 32.00,
+    netCostImpact: -6.00,
+    accuracyRate: 98.2,
+    notes: 'تم اعتماد التسوية وتعديل رصيد حليب جهينة عجز قطعة واحدة وزيادة جبن رومي.',
+    items: [
+      {
+        productId: 'p1',
+        productName: 'حليب المراعي كامل الدسم 1 لتر',
+        barcode: '6221001000101',
+        category: 'ألبان وأجبان',
+        unit: 'زجاجة',
+        buyPrice: 38,
+        sellPrice: 45,
+        systemStock: 45,
+        actualStock: 44,
+        variance: -1,
+        costDifference: -38,
+        sellDifference: -45,
+        notes: 'عجز قطعة أثناء العرض',
+        status: 'shortage'
+      },
+      {
+        productId: 'p2',
+        productName: 'جبنة فتا بريزيدن 500جم',
+        barcode: '6221001000102',
+        category: 'ألبان وأجبان',
+        unit: 'علبة',
+        buyPrice: 55,
+        sellPrice: 68,
+        systemStock: 28,
+        actualStock: 28,
+        variance: 0,
+        costDifference: 0,
+        sellDifference: 0,
+        notes: 'مطابق تماماً',
+        status: 'matched'
+      }
+    ]
+  }
+];
 

@@ -26,7 +26,7 @@ const customPermissions = (allowed: Partial<RolePermissionSet>): RolePermissionS
 });
 
 export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
-  super_admin: {
+    super_admin: {
     dashboard: allPermissions(true),
     pos: allPermissions(true),
     inventory: allPermissions(true),
@@ -39,6 +39,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: allPermissions(true),
     audit_log: allPermissions(true),
     inventory_reports: allPermissions(true),
+    stock_audit: allPermissions(true),
     accounting: allPermissions(true),
     hr: allPermissions(true),
     requirements: allPermissions(true),
@@ -57,6 +58,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: allPermissions(true),
     audit_log: allPermissions(true),
     inventory_reports: allPermissions(true),
+    stock_audit: allPermissions(true),
     accounting: allPermissions(true),
     hr: allPermissions(true),
     requirements: allPermissions(true),
@@ -75,6 +77,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     audit_log: customPermissions({ view: true, print: true }),
     inventory_reports: customPermissions({ view: true, print: true, export: true }),
+    stock_audit: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     accounting: customPermissions({ view: true, print: true }),
     hr: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     requirements: customPermissions({ view: true }),
@@ -93,6 +96,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: customPermissions({ view: true, print: true }),
     audit_log: customPermissions({ view: false }),
     inventory_reports: customPermissions({ view: true, print: true, export: true }),
+    stock_audit: customPermissions({ view: true, print: true, export: true }),
     accounting: customPermissions({ view: true, create: true, edit: true, approve: true, cancel: true, print: true, export: true }),
     hr: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     requirements: customPermissions({ view: true }),
@@ -111,6 +115,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: customPermissions({ view: true, create: true, edit: true }), // open, close shifts
     audit_log: customPermissions({ view: false }),
     inventory_reports: customPermissions({ view: false }),
+    stock_audit: customPermissions({ view: false }),
     accounting: customPermissions({ view: false }),
     hr: customPermissions({ view: false }),
     requirements: customPermissions({ view: false }),
@@ -129,6 +134,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: customPermissions({ view: false }),
     audit_log: customPermissions({ view: false }),
     inventory_reports: customPermissions({ view: true, print: true, export: true }),
+    stock_audit: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     accounting: customPermissions({ view: false }),
     hr: customPermissions({ view: false }),
     requirements: customPermissions({ view: false }),
@@ -147,6 +153,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     shifts: customPermissions({ view: true, create: true, edit: true, print: true }),
     audit_log: customPermissions({ view: true }),
     inventory_reports: customPermissions({ view: true, print: true }),
+    stock_audit: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     accounting: customPermissions({ view: false }),
     hr: customPermissions({ view: true, create: true, edit: true, print: true }),
     requirements: customPermissions({ view: true }),
@@ -195,6 +202,7 @@ export const MODULE_ARABIC_NAMES: Record<ModuleName, string> = {
   shifts: 'إدارة ورديات الصندوق',
   audit_log: 'سجل الرقابة والعمليات',
   inventory_reports: 'تقارير حركة المخازن',
+  stock_audit: 'جرد وتدقيق المخزون',
   accounting: 'القيود والدفاتر المحاسبية',
   hr: 'شؤون العاملين والرواتب',
   requirements: 'المتطلبات والنظام',

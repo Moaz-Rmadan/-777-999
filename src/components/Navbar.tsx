@@ -117,6 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       groupIcon: <Package className="w-4 h-4 text-blue-500" />,
       items: [
         { id: 'inventory', label: 'الأصناف والمخزون', icon: <Package className="w-4 h-4 text-blue-600" />, badge: lowStockCount },
+        { id: 'stock_audit', label: 'جرد وتدقيق المخزون', icon: <ClipboardList className="w-4 h-4 text-emerald-600" /> },
         { id: 'purchases', label: 'المشتريات والطلب', icon: <Receipt className="w-4 h-4 text-amber-600" /> },
         { id: 'suppliers', label: 'الموردين والحسابات', icon: <Truck className="w-4 h-4 text-amber-500" /> },
         { id: 'inventory_reports', label: 'تقارير الحركة', icon: <Layers className="w-4 h-4 text-slate-500" /> },
