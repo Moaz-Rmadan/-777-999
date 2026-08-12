@@ -1,22 +1,38 @@
 {
   "entities": {
-    "SystemData": {
-      "title": "System Data Document",
-      "description": "Wrapped application collections and state variables",
+    "User": {
+      "title": "User",
+      "description": "User entity",
       "type": "object",
       "properties": {
-        "data": {
-          "type": "array",
-          "description": "Array of system entries or system settings configuration object"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string" }
       },
-      "required": ["data"]
+      "required": ["id", "name", "username", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "stock": { "type": "number" }
+      },
+      "required": ["id", "name", "stock"]
     }
   },
   "firestore": {
-    "/system_data/{documentId}": {
-      "schema": "SystemData",
-      "description": "Standard document wrapper storing system configuration, logs, or transactions"
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User documents"
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Product documents"
     }
   }
 }

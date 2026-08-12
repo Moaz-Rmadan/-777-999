@@ -43,24 +43,25 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 
-// Lazy load views for optimized chunking and performance
-const RequirementsView = React.lazy(() => import('./components/RequirementsView').then(m => ({ default: m.RequirementsView })));
-const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
-const PosView = React.lazy(() => import('./components/PosView').then(m => ({ default: m.PosView })));
-const InventoryView = React.lazy(() => import('./components/InventoryView').then(m => ({ default: m.InventoryView })));
-const PurchasesView = React.lazy(() => import('./components/PurchasesView').then(m => ({ default: m.PurchasesView })));
-const SuppliersView = React.lazy(() => import('./components/SuppliersView').then(m => ({ default: m.SuppliersView })));
-const CustomersView = React.lazy(() => import('./components/CustomersView').then(m => ({ default: m.CustomersView })));
-const ExpensesView = React.lazy(() => import('./components/ExpensesView').then(m => ({ default: m.ExpensesView })));
-const ReportsView = React.lazy(() => import('./components/ReportsView').then(m => ({ default: m.ReportsView })));
-const UsersView = React.lazy(() => import('./components/UsersView').then(m => ({ default: m.UsersView })));
-const ShiftsView = React.lazy(() => import('./components/ShiftsView').then(m => ({ default: m.ShiftsView })));
+import { ReportsView } from './components/ReportsView';
+import { DashboardView } from './components/DashboardView';
+import { PosView } from './components/PosView';
+import { InventoryView } from './components/InventoryView';
+import { PurchasesView } from './components/PurchasesView';
+import { SuppliersView } from './components/SuppliersView';
+import { CustomersView } from './components/CustomersView';
+import { ExpensesView } from './components/ExpensesView';
+import { UsersView } from './components/UsersView';
+import { ShiftsView } from './components/ShiftsView';
+import { StockAuditView } from './components/StockAuditView';
+import { AccountingView } from './components/AccountingView';
+import { SettingsView } from './components/SettingsView';
+import { HrView } from './components/HrView';
+import { RequirementsView } from './components/RequirementsView';
+
 const AuditLogView = React.lazy(() => import('./components/AuditLogView'));
 const InventoryReportsView = React.lazy(() => import('./components/InventoryReportsView'));
-const StockAuditView = React.lazy(() => import('./components/StockAuditView').then(m => ({ default: m.StockAuditView })));
-const AccountingView = React.lazy(() => import('./components/AccountingView').then(m => ({ default: m.AccountingView })));
-const SettingsView = React.lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const HrView = React.lazy(() => import('./components/HrView').then(m => ({ default: m.HrView })));
+
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
 
 function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {

@@ -1,14 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default safety catch-all net
+    
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Secure system_data collection - only allow authenticated SSO employees
+    // Hardened system_data collection
     match /system_data/{documentId} {
-      allow read, write: if request.auth != null;
+      allow read: if isSignedIn() && isEmailVerified();
+      allow write: if isSignedIn() && isEmailVerified();
     }
   }
 }
