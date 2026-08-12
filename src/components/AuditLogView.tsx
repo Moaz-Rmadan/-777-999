@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AuditLogEntry } from '../types';
 import { 
   History, 
@@ -11,6 +11,7 @@ import {
   Tag,
   Monitor
 } from 'lucide-react';
+import { Pagination } from './Pagination';
 
 interface AuditLogViewProps {
   logs: AuditLogEntry[];
@@ -20,17 +21,33 @@ const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
-  const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
-      (log.userName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.entityId || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = filterType === 'all' || log.entityType === filterType;
-    
-    return matchesSearch && matchesType;
-  });
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      const matchesSearch = 
+        (log.userName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.entityId || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = filterType === 'all' || log.entityType === filterType;
+      
+      return matchesSearch && matchesType;
+    });
+  }, [logs, searchTerm, filterType]);
+
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredLogs.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredLogs, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+
+  // Reset page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -96,7 +113,7 @@ const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredLogs.length > 0 ? filteredLogs.map((log) => (
+              {paginatedLogs.length > 0 ? paginatedLogs.map((log) => (
                 <React.Fragment key={log.id}>
                   <tr className={`hover:bg-indigo-50/30 even:bg-slate-50/40 transition-colors ${expandedId === log.id ? 'bg-indigo-50/70' : ''}`}>
                     <td className="px-3.5 py-2.5">
@@ -184,6 +201,13 @@ const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredLogs.length}
+          itemsPerPage={itemsPerPage}
+        />
       </div>
     </div>
   );

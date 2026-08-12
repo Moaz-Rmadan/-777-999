@@ -44,6 +44,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: allPermissions(true),
     requirements: allPermissions(true),
     settings: allPermissions(true),
+    offline_sync: allPermissions(true),
   },
   admin: { // Compatibility with existing admin
     dashboard: allPermissions(true),
@@ -63,6 +64,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: allPermissions(true),
     requirements: allPermissions(true),
     settings: allPermissions(true),
+    offline_sync: allPermissions(true),
   },
   manager: {
     dashboard: customPermissions({ view: true, print: true, export: true }),
@@ -82,6 +84,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     requirements: customPermissions({ view: true }),
     settings: customPermissions({ view: true, edit: true }),
+    offline_sync: customPermissions({ view: true, create: true, edit: true }),
   },
   accountant: {
     dashboard: customPermissions({ view: true, print: true, export: true }),
@@ -101,6 +104,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: customPermissions({ view: true, create: true, edit: true, print: true, export: true }),
     requirements: customPermissions({ view: true }),
     settings: customPermissions({ view: true }),
+    offline_sync: customPermissions({ view: true }),
   },
   cashier: {
     dashboard: customPermissions({ view: false }),
@@ -120,6 +124,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: customPermissions({ view: false }),
     requirements: customPermissions({ view: false }),
     settings: customPermissions({ view: false }),
+    offline_sync: customPermissions({ view: true }),
   },
   warehouse: {
     dashboard: customPermissions({ view: false }),
@@ -139,6 +144,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: customPermissions({ view: false }),
     requirements: customPermissions({ view: false }),
     settings: customPermissions({ view: false }),
+    offline_sync: customPermissions({ view: true }),
   },
   branch_manager: {
     dashboard: customPermissions({ view: true, print: true, export: true }),
@@ -158,6 +164,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMatrix = {
     hr: customPermissions({ view: true, create: true, edit: true, print: true }),
     requirements: customPermissions({ view: true }),
     settings: customPermissions({ view: true, edit: true }),
+    offline_sync: customPermissions({ view: true, create: true, edit: true }),
   },
 };
 
@@ -206,6 +213,7 @@ export const MODULE_ARABIC_NAMES: Record<ModuleName, string> = {
   accounting: 'القيود والدفاتر المحاسبية',
   hr: 'شؤون العاملين والرواتب',
   requirements: 'المتطلبات والنظام',
+  offline_sync: 'محرك المزامنة دون اتصال',
   settings: 'الإعدادات العامة للنظام',
 };
 

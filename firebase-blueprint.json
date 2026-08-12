@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "SystemData": {
+      "title": "System Data Document",
+      "description": "Wrapped application collections and state variables",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "description": "Array of system entries or system settings configuration object"
+        }
+      },
+      "required": ["data"]
+    }
+  },
+  "firestore": {
+    "/system_data/{documentId}": {
+      "schema": "SystemData",
+      "description": "Standard document wrapper storing system configuration, logs, or transactions"
+    }
+  }
+}

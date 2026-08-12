@@ -38,6 +38,12 @@ interface InventoryViewProps {
   canDelete?: boolean;
   canApprove?: boolean;
   onNavigate?: (tab: any) => void;
+  journalEntries?: any[];
+  inventoryMovements?: any[];
+  onTransferStock?: (transfer: any) => void;
+  onAdjustStock?: (adjustment: any) => void;
+  invoices?: any[];
+  purchases?: any[];
 }
 
 type FilterTab = 'all' | 'low' | 'out' | 'active';
@@ -52,6 +58,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   canDelete = true,
   canApprove = true,
   onNavigate,
+  journalEntries = [],
+  inventoryMovements = [],
+  onTransferStock,
+  onAdjustStock,
+  invoices = [],
+  purchases = []
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -100,6 +112,22 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   // Density state: 'compact' | 'dense' | 'comfortable'
   const [tableDensity, setTableDensity] = useState<'compact' | 'dense' | 'comfortable'>('dense');
+
+  const [activeMainTab, setActiveMainTab] = useState<'products' | 'transfers_adjustments' | 'ledger'>('products');
+
+  // Form states for stock transfer
+  const [transferProdId, setTransferProdId] = useState('');
+  const [transferFrom, setTransferFrom] = useState<'main' | 'storefront' | 'damaged'>('main');
+  const [transferTo, setTransferTo] = useState<'main' | 'storefront' | 'damaged'>('storefront');
+  const [transferQty, setTransferQty] = useState('');
+  const [transferNotes, setTransferNotes] = useState('');
+
+  // Form states for adjustments
+  const [adjustProdId, setAdjustProdId] = useState('');
+  const [adjustType, setAdjustType] = useState<'increase' | 'decrease'>('decrease');
+  const [adjustQty, setAdjustQty] = useState('');
+  const [adjustReason, setAdjustReason] = useState<'damaged' | 'gift' | 'sample' | 'theft' | 'inventory_audit' | 'expired' | 'other'>('damaged');
+  const [adjustNotes, setAdjustNotes] = useState('');
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))];
 
@@ -264,6 +292,62 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     alert(`تم تعديل مخزون [${stockAdjProduct.name}] إلى ${newQty} ${stockAdjProduct.unit}`);
   };
 
+  const handleLocalTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferProdId || !transferQty) {
+      alert('الرجاء اختيار المنتج والكمية.');
+      return;
+    }
+    const qty = parseInt(transferQty);
+    if (isNaN(qty) || qty <= 0) {
+      alert('الرجاء إدخال كمية صحيحة أكبر من الصفر.');
+      return;
+    }
+    if (transferFrom === transferTo) {
+      alert('الرجاء اختيار موقعين مختلفين للتحويل.');
+      return;
+    }
+
+    if (onTransferStock) {
+      onTransferStock({
+        productId: transferProdId,
+        fromLocation: transferFrom,
+        toLocation: transferTo,
+        quantity: qty,
+        notes: transferNotes
+      });
+      setTransferQty('');
+      setTransferNotes('');
+      alert('تم تسجيل عملية التحويل المخزني بنجاح!');
+    }
+  };
+
+  const handleLocalAdjustSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustProdId || !adjustQty) {
+      alert('الرجاء اختيار المنتج والكمية.');
+      return;
+    }
+    const qty = parseInt(adjustQty);
+    if (isNaN(qty) || qty <= 0) {
+      alert('الرجاء إدخال كمية صحيحة أكبر من الصفر.');
+      return;
+    }
+
+    if (onAdjustStock) {
+      onAdjustStock({
+        productId: adjustProdId,
+        type: adjustType,
+        quantity: qty,
+        reason: adjustReason,
+        notes: adjustNotes
+      });
+      setAdjustQty('');
+      setAdjustNotes('');
+      alert('تم تسجيل تسوية المخزون وتحديث الحسابات بنجاح!');
+    }
+  };
+
   // Export to CSV
   const handleExportCSV = () => {
     const itemsToExport = selectedIds.length > 0 
@@ -407,8 +491,44 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
-      {/* Search & Status Filters Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+      {/* Sub Tabs Selection Bar */}
+      <div className="flex border-b border-slate-200 gap-1 select-none">
+        <button
+          onClick={() => setActiveMainTab('products')}
+          className={`px-6 py-3 font-black text-xs transition-all border-b-2 -mb-[1px] ${
+            activeMainTab === 'products'
+              ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-xl font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          قائمة الأصناف والمخزون
+        </button>
+        <button
+          onClick={() => setActiveMainTab('transfers_adjustments')}
+          className={`px-6 py-3 font-black text-xs transition-all border-b-2 -mb-[1px] ${
+            activeMainTab === 'transfers_adjustments'
+              ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-xl font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          التحويلات والتسويات البينية
+        </button>
+        <button
+          onClick={() => setActiveMainTab('ledger')}
+          className={`px-6 py-3 font-black text-xs transition-all border-b-2 -mb-[1px] ${
+            activeMainTab === 'ledger'
+              ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-xl font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          دفتر حركة ومراجعة المخزون
+        </button>
+      </div>
+
+      {activeMainTab === 'products' && (
+        <>
+          {/* Search & Status Filters Bar */}
+          <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
         
         {/* Search Field */}
         <div className="relative">
@@ -691,6 +811,297 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </table>
         </div>
       </div>
+      </>
+      )}
+
+      {activeMainTab === 'transfers_adjustments' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
+          {/* Form 1: Stock Transfer */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin-slow" />
+              <div>
+                <h3 className="text-sm font-black text-slate-900">تحويل المخزون بين المواقع الافتراضية</h3>
+                <p className="text-[10px] text-slate-400 font-bold">نقل كميات بين المخزن الرئيسي، صالة العرض، أو سلة التوالف</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleLocalTransferSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">المنتج المراد نقله *</label>
+                <select
+                  value={transferProdId}
+                  onChange={(e) => setTransferProdId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  required
+                >
+                  <option value="">-- اختر صنفاً --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.stock} {p.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">من موقع *</label>
+                  <select
+                    value={transferFrom}
+                    onChange={(e: any) => setTransferFrom(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="main">المخزن الرئيسي (Main)</option>
+                    <option value="storefront">صالة العرض (Storefront)</option>
+                    <option value="damaged">سلة التوالف (Damaged)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">إلى موقع *</label>
+                  <select
+                    value={transferTo}
+                    onChange={(e: any) => setTransferTo(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="storefront">صالة العرض (Storefront)</option>
+                    <option value="main">المخزن الرئيسي (Main)</option>
+                    <option value="damaged">سلة التوالف (Damaged)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">الكمية المحولة *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={transferQty}
+                  onChange={(e) => setTransferQty(e.target.value)}
+                  placeholder="كم قطعة تريد تحويلها؟"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">ملاحظات / سبب النقل</label>
+                <textarea
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  placeholder="مثال: تعبئة الرفوف الفارغة بصالة العرض"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all animate-pulse"
+              >
+                تأكيد وترحيل التحويل المخزني
+              </button>
+            </form>
+          </div>
+
+          {/* Form 2: Stock Adjustment */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <Sliders className="w-5 h-5 text-indigo-600" />
+              <div>
+                <h3 className="text-sm font-black text-slate-900">تسويات المخزون (الزيادة والعجز والتلف)</h3>
+                <p className="text-[10px] text-slate-400 font-bold">تسوية فروق المخزون والفاقد والتوالف مع التأثير المحاسبي المزدوج</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleLocalAdjustSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">المنتج الخاضع للتسوية *</label>
+                <select
+                  value={adjustProdId}
+                  onChange={(e) => setAdjustProdId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  required
+                >
+                  <option value="">-- اختر صنفاً --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.stock} {p.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">نوع التسوية *</label>
+                  <select
+                    value={adjustType}
+                    onChange={(e: any) => setAdjustType(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="decrease">تخفيض المخزون (عجز / تلف)</option>
+                    <option value="increase">زيادة المخزون (تسوية جردية)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">السبب المحاسبي *</label>
+                  <select
+                    value={adjustReason}
+                    onChange={(e: any) => setAdjustReason(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="damaged">بضاعة تالفة (Damaged)</option>
+                    <option value="theft">سرقة أو فقدان (Theft)</option>
+                    <option value="expired">بضاعة منتهية الصلاحية (Expired)</option>
+                    <option value="gift">هدايا وعينات ترويجية (Gift)</option>
+                    <option value="inventory_audit">تسوية فروقات الجرد (Audit)</option>
+                    <option value="other">أسباب أخرى (Other)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">الكمية الخاضعة للتسوية *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  placeholder="كم قطعة؟"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black text-slate-700 mb-1">ملاحظات توضيحية للتسوية</label>
+                <textarea
+                  value={adjustNotes}
+                  onChange={(e) => setAdjustNotes(e.target.value)}
+                  placeholder="مثال: كسر زجاجي بسبب سقوط الرف"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition-all"
+              >
+                ترحيل تسوية المخزون فورياً
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {activeMainTab === 'ledger' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Stock Costing Valuation Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">إجمالي كمية البضائع (الكل)</span>
+              <p className="text-xl font-black text-slate-900 mt-1 font-mono-numbers">
+                {products.reduce((sum, p) => sum + p.stock, 0)} {products[0]?.unit || 'وحدة'}
+              </p>
+              <div className="mt-2 text-[10px] text-emerald-600 font-bold">
+                متوسط التكلفة المرجحة (WAC) مفعل
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">القيمة الإجمالية للمخزون (سعر الشراء)</span>
+              <p className="text-xl font-black text-emerald-800 mt-1 font-mono-numbers">
+                ج.م {products.reduce((sum, p) => sum + (p.stock * p.buyPrice), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </p>
+              <div className="mt-2 text-[10px] text-slate-400 font-bold">
+                قيمة دورة رأس المال المستثمر
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">القيمة المتوقعة عند البيع (سعر البيع)</span>
+              <p className="text-xl font-black text-indigo-800 mt-1 font-mono-numbers">
+                ج.م {products.reduce((sum, p) => sum + (p.stock * p.sellPrice), 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </p>
+              <div className="mt-2 text-[10px] text-slate-400 font-bold">
+                الأرباح المتوقعة: ج.م {(products.reduce((sum, p) => sum + (p.stock * p.sellPrice), 0) - products.reduce((sum, p) => sum + (p.stock * p.buyPrice), 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </div>
+            </div>
+          </div>
+
+          {/* Ledger Table Container */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" />
+                <span>سجل حركة المخزون التفصيلي (Inventory Ledger Log)</span>
+              </h3>
+              <span className="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded-full font-black font-mono-numbers">
+                {inventoryMovements.length} حركات مسجلة
+              </span>
+            </div>
+
+            <div className="overflow-x-auto max-h-[500px]">
+              <table className="w-full text-right text-xs border-collapse">
+                <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 font-black z-10 select-none">
+                  <tr>
+                    <th className="px-4 py-3">التاريخ والوقت</th>
+                    <th className="px-4 py-3">المنتج</th>
+                    <th className="px-4 py-3">النوع</th>
+                    <th className="px-4 py-3 text-center">الالكمية</th>
+                    <th className="px-4 py-3">المرجع</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {inventoryMovements.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">
+                        <Package className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p>لا توجد حركات مخزن مسجلة حالياً</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    inventoryMovements.map(m => {
+                      const badgeColor = 
+                        m.type === 'sale' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                        m.type === 'purchase' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                        m.type === 'return' ? 'bg-amber-50 text-amber-800 border-amber-200' :
+                        'bg-purple-50 text-purple-800 border-purple-200';
+                      const typeLabel = 
+                        m.type === 'sale' ? 'مبيعات' :
+                        m.type === 'purchase' ? 'مشتريات' :
+                        m.type === 'return' ? 'مرتجعات' :
+                        'تسوية مخزن';
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 text-slate-500 font-mono-numbers">
+                            {new Date(m.date).toLocaleString('ar-EG', {hour12: true})}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-900">{m.productName}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}`}>
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center font-mono-numbers font-black text-slate-900">
+                            {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 font-mono tracking-wide">{m.referenceId}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: ADD / EDIT PRODUCT MODAL */}
       {showModal && (

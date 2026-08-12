@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement, Employee, AttendanceRecord, PayrollRecord, AdvancePayment, StockAuditSession } from './types';
+import { ActiveTab, Product, Invoice, Expense, PurchaseInvoice, Supplier, Customer, User, Shift, AuditLogEntry, SupplierTransaction, CustomerTransaction, JournalEntry, RolePermissionMatrix, SystemSettings, InventoryMovement, Employee, AttendanceRecord, PayrollRecord, AdvancePayment, StockAuditSession, Account } from './types';
+import { 
+  postSale, 
+  postPurchase, 
+  postSaleReturn, 
+  postPurchaseReturn, 
+  postPayment, 
+  closeShift, 
+  postExpense,
+  transferStock,
+  adjustStock,
+  ensureVersionAndLocations,
+  ProductWithVersion,
+  StockTransfer,
+  StockAdjustment
+} from './core/modules/inventory';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_SUPPLIERS, 
@@ -13,32 +28,39 @@ import {
   INITIAL_ATTENDANCE,
   INITIAL_PAYROLLS,
   INITIAL_ADVANCES,
-  INITIAL_AUDIT_SESSIONS
+  INITIAL_AUDIT_SESSIONS,
+  INITIAL_ACCOUNTS
 } from './mockData';
-import { saveToFirebase, loadFromFirebase, auth, logoutFirebase } from './firebase';
+import { saveToFirebase, loadFromFirebase, auth, logoutFirebase, db } from './firebase';
+import { OfflineEngine } from './core/services/offlineEngine';
+import { OfflineSyncView } from './components/OfflineSyncView';
+import { OfflineQueueItem } from './types';
 import { onAuthStateChanged } from 'firebase/auth';
+import { onSnapshot, doc } from 'firebase/firestore';
 import { Navbar } from './components/Navbar';
-import { RequirementsView } from './components/RequirementsView';
-import { DashboardView } from './components/DashboardView';
-import { PosView } from './components/PosView';
-import { InventoryView } from './components/InventoryView';
-import { PurchasesView } from './components/PurchasesView';
-import { SuppliersView } from './components/SuppliersView';
-import { CustomersView } from './components/CustomersView';
-import { ExpensesView } from './components/ExpensesView';
-import { ReportsView } from './components/ReportsView';
 import { LoginView } from './components/LoginView';
-import { UsersView } from './components/UsersView';
-import { ShiftsView } from './components/ShiftsView';
-import AuditLogView from './components/AuditLogView';
-import InventoryReportsView from './components/InventoryReportsView';
-import { StockAuditView } from './components/StockAuditView';
-import { AccountingView } from './components/AccountingView';
-import { SettingsView } from './components/SettingsView';
-import { HrView } from './components/HrView';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
+
+// Lazy load views for optimized chunking and performance
+const RequirementsView = React.lazy(() => import('./components/RequirementsView').then(m => ({ default: m.RequirementsView })));
+const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const PosView = React.lazy(() => import('./components/PosView').then(m => ({ default: m.PosView })));
+const InventoryView = React.lazy(() => import('./components/InventoryView').then(m => ({ default: m.InventoryView })));
+const PurchasesView = React.lazy(() => import('./components/PurchasesView').then(m => ({ default: m.PurchasesView })));
+const SuppliersView = React.lazy(() => import('./components/SuppliersView').then(m => ({ default: m.SuppliersView })));
+const CustomersView = React.lazy(() => import('./components/CustomersView').then(m => ({ default: m.CustomersView })));
+const ExpensesView = React.lazy(() => import('./components/ExpensesView').then(m => ({ default: m.ExpensesView })));
+const ReportsView = React.lazy(() => import('./components/ReportsView').then(m => ({ default: m.ReportsView })));
+const UsersView = React.lazy(() => import('./components/UsersView').then(m => ({ default: m.UsersView })));
+const ShiftsView = React.lazy(() => import('./components/ShiftsView').then(m => ({ default: m.ShiftsView })));
+const AuditLogView = React.lazy(() => import('./components/AuditLogView'));
+const InventoryReportsView = React.lazy(() => import('./components/InventoryReportsView'));
+const StockAuditView = React.lazy(() => import('./components/StockAuditView').then(m => ({ default: m.StockAuditView })));
+const AccountingView = React.lazy(() => import('./components/AccountingView').then(m => ({ default: m.AccountingView })));
+const SettingsView = React.lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const HrView = React.lazy(() => import('./components/HrView').then(m => ({ default: m.HrView })));
 import { DEFAULT_ROLE_PERMISSIONS, hasPermission } from './permissions';
 
 function mergeUniqueById<T extends { id: string; operationId?: string }>(localList: T[], remoteList: T[]): T[] {
@@ -65,10 +87,7 @@ function mergeUniqueById<T extends { id: string; operationId?: string }>(localLi
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('sm_current_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(true);
@@ -80,6 +99,35 @@ export default function App() {
     confirmLabel?: string;
     onConfirm: () => void;
   } | null>(null);
+
+  const [simulatedOffline, setSimulatedOffline] = useState(() => {
+    return localStorage.getItem('sm_simulated_offline') === 'true';
+  });
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? (navigator.onLine && !simulatedOffline) : true);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>(() => {
+    return OfflineEngine.loadQueue();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sm_simulated_offline', String(simulatedOffline));
+    setIsOnline(navigator.onLine && !simulatedOffline);
+  }, [simulatedOffline]);
+
+  useEffect(() => {
+    const handleNetworkChange = () => {
+      setIsOnline(navigator.onLine && !simulatedOffline);
+    };
+    window.addEventListener('online', handleNetworkChange);
+    window.addEventListener('offline', handleNetworkChange);
+    return () => {
+      window.removeEventListener('online', handleNetworkChange);
+      window.removeEventListener('offline', handleNetworkChange);
+    };
+  }, [simulatedOffline]);
+
+  useEffect(() => {
+    OfflineEngine.saveQueue(offlineQueue);
+  }, [offlineQueue]);
 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('sm_users');
@@ -142,86 +190,78 @@ export default function App() {
   // Save to localStorage & Firebase
   useEffect(() => {
     localStorage.setItem('sm_audit_sessions', JSON.stringify(auditSessions));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_audit_sessions', auditSessions);
     }
-  }, [auditSessions, isFirebaseLoading]);
+  }, [auditSessions, isFirebaseLoading, currentUser, isOnline]);
   useEffect(() => {
     localStorage.setItem('sm_settings', JSON.stringify(settings));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_settings', settings);
     }
-  }, [settings, isFirebaseLoading]);
+  }, [settings, isFirebaseLoading, currentUser, isOnline]);
   useEffect(() => {
     localStorage.setItem('sm_products', JSON.stringify(products));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_products', products);
     }
-  }, [products, isFirebaseLoading]);
+  }, [products, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_invoices', JSON.stringify(invoices));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_invoices', invoices);
     }
-  }, [invoices, isFirebaseLoading]);
+  }, [invoices, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_purchases', JSON.stringify(purchases));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_purchases', purchases);
     }
-  }, [purchases, isFirebaseLoading]);
+  }, [purchases, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_suppliers', JSON.stringify(suppliers));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_suppliers', suppliers);
     }
-  }, [suppliers, isFirebaseLoading]);
+  }, [suppliers, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_customers', JSON.stringify(customers));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_customers', customers);
     }
-  }, [customers, isFirebaseLoading]);
+  }, [customers, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_expenses', JSON.stringify(expenses));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_expenses', expenses);
     }
-  }, [expenses, isFirebaseLoading]);
+  }, [expenses, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_users', JSON.stringify(users));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_users', users);
     }
-  }, [users, isFirebaseLoading]);
+  }, [users, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('pos_permission_matrix', JSON.stringify(permissionMatrix));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('pos_permission_matrix', permissionMatrix);
     }
-  }, [permissionMatrix, isFirebaseLoading]);
+  }, [permissionMatrix, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_shifts', JSON.stringify(shifts));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_shifts', shifts);
     }
-  }, [shifts, isFirebaseLoading]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('sm_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('sm_current_user');
-    }
-  }, [currentUser]);
+  }, [shifts, isFirebaseLoading, currentUser, isOnline]);
 
   // Handlers
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
@@ -244,12 +284,24 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [accounts, setAccounts] = useState<Account[]>(() => {
+    const saved = localStorage.getItem('sm_accounts');
+    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sm_accounts', JSON.stringify(accounts));
+    if (!isFirebaseLoading && currentUser && isOnline) {
+      saveToFirebase('sm_accounts', accounts);
+    }
+  }, [accounts, isFirebaseLoading, currentUser, isOnline]);
+
   useEffect(() => {
     localStorage.setItem('sm_journal_entries', JSON.stringify(journalEntries));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_journal_entries', journalEntries);
     }
-  }, [journalEntries, isFirebaseLoading]);
+  }, [journalEntries, isFirebaseLoading, currentUser, isOnline]);
 
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(() => {
     const saved = localStorage.getItem('sm_inventory_movements');
@@ -258,10 +310,10 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('sm_inventory_movements', JSON.stringify(inventoryMovements));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser && isOnline) {
       saveToFirebase('sm_inventory_movements', inventoryMovements);
     }
-  }, [inventoryMovements, isFirebaseLoading]);
+  }, [inventoryMovements, isFirebaseLoading, currentUser, isOnline]);
 
   // HR States
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -283,105 +335,162 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('sm_employees', JSON.stringify(employees));
-    if (!isFirebaseLoading) saveToFirebase('sm_employees', employees);
-  }, [employees, isFirebaseLoading]);
+    if (!isFirebaseLoading && currentUser && isOnline) saveToFirebase('sm_employees', employees);
+  }, [employees, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_attendance', JSON.stringify(attendance));
-    if (!isFirebaseLoading) saveToFirebase('sm_attendance', attendance);
-  }, [attendance, isFirebaseLoading]);
+    if (!isFirebaseLoading && currentUser && isOnline) saveToFirebase('sm_attendance', attendance);
+  }, [attendance, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_payrolls', JSON.stringify(payrolls));
-    if (!isFirebaseLoading) saveToFirebase('sm_payrolls', payrolls);
-  }, [payrolls, isFirebaseLoading]);
+    if (!isFirebaseLoading && currentUser && isOnline) saveToFirebase('sm_payrolls', payrolls);
+  }, [payrolls, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     localStorage.setItem('sm_advances', JSON.stringify(advances));
-    if (!isFirebaseLoading) saveToFirebase('sm_advances', advances);
-  }, [advances, isFirebaseLoading]);
+    if (!isFirebaseLoading && currentUser && isOnline) saveToFirebase('sm_advances', advances);
+  }, [advances, isFirebaseLoading, currentUser, isOnline]);
 
   useEffect(() => {
     let unsubscribeAuth: (() => void) | null = null;
+    let activeListeners: (() => void)[] = [];
 
-    async function loadAllFirebaseData() {
-      try {
-        const u = await loadFromFirebase('sm_users');
-        const p = await loadFromFirebase('sm_products');
-        const i = await loadFromFirebase('sm_invoices');
-        const pu = await loadFromFirebase('sm_purchases');
-        const s = await loadFromFirebase('sm_suppliers');
-        const c = await loadFromFirebase('sm_customers');
-        const e = await loadFromFirebase('sm_expenses');
-        const pm = await loadFromFirebase('pos_permission_matrix');
-        const sh = await loadFromFirebase('sm_shifts');
-        const al = await loadFromFirebase('pos_audit_logs');
-        const st = await loadFromFirebase('pos_supplier_transactions');
-        const ct = await loadFromFirebase('pos_customer_transactions');
-        const je = await loadFromFirebase('sm_journal_entries');
-        const mov = await loadFromFirebase('sm_inventory_movements');
-        const emp = await loadFromFirebase('sm_employees');
-        const att = await loadFromFirebase('sm_attendance');
-        const pay = await loadFromFirebase('sm_payrolls');
-        const adv = await loadFromFirebase('sm_advances');
-        const sett = await loadFromFirebase('sm_settings');
+    const cleanupActiveListeners = () => {
+      activeListeners.forEach(unsub => {
+        try { unsub(); } catch (e) { console.error("Unsubscribe error:", e); }
+      });
+      activeListeners = [];
+    };
 
-        let currentUsersList = u || INITIAL_USERS;
+    unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      cleanupActiveListeners();
+      if (firebaseUser && firebaseUser.email) {
+        setIsFirebaseLoading(true);
+        try {
+          // Parallelize Firestore queries for maximum throughput and low time-to-interactive (TTI)
+          const keys = [
+            'sm_users', 'sm_products', 'sm_invoices', 'sm_purchases',
+            'sm_suppliers', 'sm_customers', 'sm_expenses', 'pos_permission_matrix',
+            'sm_shifts', 'pos_audit_logs', 'pos_supplier_transactions',
+            'pos_customer_transactions', 'sm_journal_entries', 'sm_accounts',
+            'sm_inventory_movements', 'sm_employees', 'sm_attendance',
+            'sm_payrolls', 'sm_advances', 'sm_settings'
+          ];
+          const results = await Promise.all(keys.map(key => loadFromFirebase(key)));
+          const [
+            u, p, i, pu,
+            s, c, e, pm,
+            sh, al, st,
+            ct, je, acc,
+            mov, emp, att,
+            pay, adv, sett
+          ] = results;
 
-        if (u !== null) setUsers(u); else { await saveToFirebase('sm_users', INITIAL_USERS); }
-        if (p !== null) setProducts(prev => mergeUniqueById(prev, p)); else { await saveToFirebase('sm_products', INITIAL_PRODUCTS); }
-        if (i !== null) setInvoices(prev => mergeUniqueById(prev, i)); else { await saveToFirebase('sm_invoices', INITIAL_INVOICES); }
-        if (pu !== null) setPurchases(prev => mergeUniqueById(prev, pu)); else { await saveToFirebase('sm_purchases', INITIAL_PURCHASES); }
-        if (s !== null) setSuppliers(prev => mergeUniqueById(prev, s)); else { await saveToFirebase('sm_suppliers', INITIAL_SUPPLIERS); }
-        if (c !== null) setCustomers(prev => mergeUniqueById(prev, c)); else { await saveToFirebase('sm_customers', INITIAL_CUSTOMERS); }
-        if (e !== null) setExpenses(prev => mergeUniqueById(prev, e)); else { await saveToFirebase('sm_expenses', INITIAL_EXPENSES); }
-        if (pm !== null) setPermissionMatrix(pm); else { await saveToFirebase('pos_permission_matrix', DEFAULT_ROLE_PERMISSIONS); }
-        if (sh !== null) setShifts(prev => mergeUniqueById(prev, sh)); else { await saveToFirebase('sm_shifts', []); }
-        if (al !== null) setAuditLogs(prev => mergeUniqueById(prev, al)); else { await saveToFirebase('pos_audit_logs', []); }
-        if (st !== null) setSupplierTransactions(prev => mergeUniqueById(prev, st)); else { await saveToFirebase('pos_supplier_transactions', []); }
-        if (ct !== null) setCustomerTransactions(prev => mergeUniqueById(prev, ct)); else { await saveToFirebase('pos_customer_transactions', []); }
-        if (je !== null) setJournalEntries(prev => mergeUniqueById(prev, je)); else { await saveToFirebase('sm_journal_entries', []); }
-        if (mov !== null) setInventoryMovements(prev => mergeUniqueById(prev, mov)); else { await saveToFirebase('sm_inventory_movements', []); }
-        if (emp !== null) setEmployees(prev => mergeUniqueById(prev, emp)); else { await saveToFirebase('sm_employees', INITIAL_EMPLOYEES); }
-        if (att !== null) setAttendance(prev => mergeUniqueById(prev, att)); else { await saveToFirebase('sm_attendance', INITIAL_ATTENDANCE); }
-        if (pay !== null) setPayrolls(prev => mergeUniqueById(prev, pay)); else { await saveToFirebase('sm_payrolls', INITIAL_PAYROLLS); }
-        if (adv !== null) setAdvances(prev => mergeUniqueById(prev, adv)); else { await saveToFirebase('sm_advances', INITIAL_ADVANCES); }
-        if (sett !== null) setSettings(sett); else { await saveToFirebase('sm_settings', DEFAULT_SETTINGS); }
+          let currentUsersList = u || INITIAL_USERS;
 
-        unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-          if (firebaseUser && firebaseUser.email) {
-            const matched = currentUsersList.find((usr: any) => usr.email?.toLowerCase() === firebaseUser.email?.toLowerCase());
-            if (matched) {
-              setCurrentUser(matched);
-            } else {
-              // Try username matching the prefix
-              const prefix = firebaseUser.email.split('@')[0];
-              const matchedByUsername = currentUsersList.find((usr: any) => usr.username.toLowerCase() === prefix.toLowerCase());
-              if (matchedByUsername) {
-                const updatedUser = { ...matchedByUsername, email: firebaseUser.email, avatar: firebaseUser.photoURL || undefined };
-                setCurrentUser(updatedUser);
-                setUsers(prev => {
-                  const updatedList = prev.map(usr => usr.id === updatedUser.id ? updatedUser : usr);
-                  saveToFirebase('sm_users', updatedList);
-                  return updatedList;
-                });
+          if (u !== null) setUsers(u); else { await saveToFirebase('sm_users', INITIAL_USERS); }
+          if (p !== null) setProducts(prev => mergeUniqueById(prev, p)); else { await saveToFirebase('sm_products', INITIAL_PRODUCTS); }
+          if (i !== null) setInvoices(prev => mergeUniqueById(prev, i)); else { await saveToFirebase('sm_invoices', INITIAL_INVOICES); }
+          if (pu !== null) setPurchases(prev => mergeUniqueById(prev, pu)); else { await saveToFirebase('sm_purchases', INITIAL_PURCHASES); }
+          if (s !== null) setSuppliers(prev => mergeUniqueById(prev, s)); else { await saveToFirebase('sm_suppliers', INITIAL_SUPPLIERS); }
+          if (c !== null) setCustomers(prev => mergeUniqueById(prev, c)); else { await saveToFirebase('sm_customers', INITIAL_CUSTOMERS); }
+          if (e !== null) setExpenses(prev => mergeUniqueById(prev, e)); else { await saveToFirebase('sm_expenses', INITIAL_EXPENSES); }
+          if (pm !== null) setPermissionMatrix(pm); else { await saveToFirebase('pos_permission_matrix', DEFAULT_ROLE_PERMISSIONS); }
+          if (sh !== null) setShifts(prev => mergeUniqueById(prev, sh)); else { await saveToFirebase('sm_shifts', []); }
+          if (al !== null) setAuditLogs(prev => mergeUniqueById(prev, al)); else { await saveToFirebase('pos_audit_logs', []); }
+          if (st !== null) setSupplierTransactions(prev => mergeUniqueById(prev, st)); else { await saveToFirebase('pos_supplier_transactions', []); }
+          if (ct !== null) setCustomerTransactions(prev => mergeUniqueById(prev, ct)); else { await saveToFirebase('pos_customer_transactions', []); }
+          if (je !== null) setJournalEntries(prev => mergeUniqueById(prev, je)); else { await saveToFirebase('sm_journal_entries', []); }
+          if (acc !== null) setAccounts(acc); else { await saveToFirebase('sm_accounts', INITIAL_ACCOUNTS); }
+          if (mov !== null) setInventoryMovements(prev => mergeUniqueById(prev, mov)); else { await saveToFirebase('sm_inventory_movements', []); }
+          if (emp !== null) setEmployees(prev => mergeUniqueById(prev, emp)); else { await saveToFirebase('sm_employees', INITIAL_EMPLOYEES); }
+          if (att !== null) setAttendance(prev => mergeUniqueById(prev, att)); else { await saveToFirebase('sm_attendance', INITIAL_ATTENDANCE); }
+          if (pay !== null) setPayrolls(prev => mergeUniqueById(prev, pay)); else { await saveToFirebase('sm_payrolls', INITIAL_PAYROLLS); }
+          if (adv !== null) setAdvances(prev => mergeUniqueById(prev, adv)); else { await saveToFirebase('sm_advances', INITIAL_ADVANCES); }
+          if (sett !== null) setSettings(sett); else { await saveToFirebase('sm_settings', DEFAULT_SETTINGS); }
+
+          // Subscribe to real-time updates for key, fast-changing documents
+          activeListeners.push(
+            onSnapshot(doc(db, 'system_data', 'sm_products'), (snap) => {
+              if (snap.exists()) {
+                const data = snap.data().data;
+                if (data) setProducts(prev => mergeUniqueById(prev, data));
               }
+            }, (err) => console.warn("Real-time listener for products failed:", err))
+          );
+
+          activeListeners.push(
+            onSnapshot(doc(db, 'system_data', 'sm_invoices'), (snap) => {
+              if (snap.exists()) {
+                const data = snap.data().data;
+                if (data) setInvoices(prev => mergeUniqueById(prev, data));
+              }
+            }, (err) => console.warn("Real-time listener for invoices failed:", err))
+          );
+
+          activeListeners.push(
+            onSnapshot(doc(db, 'system_data', 'sm_journal_entries'), (snap) => {
+              if (snap.exists()) {
+                const data = snap.data().data;
+                if (data) setJournalEntries(prev => mergeUniqueById(prev, data));
+              }
+            }, (err) => console.warn("Real-time listener for journal entries failed:", err))
+          );
+
+          const emailLower = firebaseUser.email.toLowerCase();
+          const matched = currentUsersList.find((usr: any) => usr.email?.toLowerCase() === emailLower);
+          if (matched) {
+            setCurrentUser(matched);
+          } else {
+            // Try username matching the prefix
+            const prefix = emailLower.split('@')[0];
+            const matchedByUsername = currentUsersList.find((usr: any) => usr.username.toLowerCase() === prefix.toLowerCase());
+            if (matchedByUsername) {
+              const updatedUser = { ...matchedByUsername, email: firebaseUser.email, avatar: firebaseUser.photoURL || undefined };
+              setCurrentUser(updatedUser);
+              setUsers(prev => {
+                const updatedList = prev.map(usr => usr.id === updatedUser.id ? updatedUser : usr);
+                saveToFirebase('sm_users', updatedList);
+                return updatedList;
+              });
+            } else if (emailLower === 'cfo.moaz@gmail.com') {
+              const ownerUser: User = {
+                id: 'u-owner',
+                name: firebaseUser.displayName || 'المالك والمستشار المالي',
+                username: 'owner',
+                role: 'super_admin',
+                email: firebaseUser.email,
+                avatar: firebaseUser.photoURL || undefined
+              };
+              setCurrentUser(ownerUser);
+              setUsers(prev => {
+                const updatedList = [ownerUser, ...prev.filter(usr => usr.email?.toLowerCase() !== 'cfo.moaz@gmail.com')];
+                saveToFirebase('sm_users', updatedList);
+                return updatedList;
+              });
+            } else {
+              setCurrentUser(null);
             }
           }
-        });
-
-      } catch (err) {
-        console.error("Error loading data from Firestore:", err);
-      } finally {
+        } catch (err) {
+          console.error("Error loading data from Firestore:", err);
+        } finally {
+          setIsFirebaseLoading(false);
+        }
+      } else {
+        setCurrentUser(null);
+        cleanupActiveListeners();
         setIsFirebaseLoading(false);
       }
-    }
-    loadAllFirebaseData();
+    });
 
     return () => {
       if (unsubscribeAuth) {
         unsubscribeAuth();
       }
+      cleanupActiveListeners();
     };
   }, []);
 
@@ -418,24 +527,24 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('pos_audit_logs', JSON.stringify(auditLogs));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser) {
       saveToFirebase('pos_audit_logs', auditLogs);
     }
-  }, [auditLogs, isFirebaseLoading]);
+  }, [auditLogs, isFirebaseLoading, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('pos_supplier_transactions', JSON.stringify(supplierTransactions));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser) {
       saveToFirebase('pos_supplier_transactions', supplierTransactions);
     }
-  }, [supplierTransactions, isFirebaseLoading]);
+  }, [supplierTransactions, isFirebaseLoading, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('pos_customer_transactions', JSON.stringify(customerTransactions));
-    if (!isFirebaseLoading) {
+    if (!isFirebaseLoading && currentUser) {
       saveToFirebase('pos_customer_transactions', customerTransactions);
     }
-  }, [customerTransactions, isFirebaseLoading]);
+  }, [customerTransactions, isFirebaseLoading, currentUser]);
 
   const logCustomerTransaction = (
     customerId: string,
@@ -587,13 +696,13 @@ export default function App() {
 
   const handleAddUser = (user: User) => {
     setUsers(prev => [user, ...prev]);
-    logAction('إضافة مستخدم جديد', 'user', user.id, null, { ...user, password: '***' });
+    logAction('إضافة مستخدم جديد', 'user', user.id, null, user);
   };
 
   const handleUpdateUser = (updated: User) => {
     const original = users.find(u => u.id === updated.id);
     setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
-    logAction('تعديل صلاحيات/بيانات مستخدم', 'user', updated.id, { ...original, password: '***' }, { ...updated, password: '***' });
+    logAction('تعديل صلاحيات/بيانات مستخدم', 'user', updated.id, original, updated);
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -605,7 +714,7 @@ export default function App() {
       confirmLabel: 'نعم، حذف المستخدم',
       onConfirm: () => {
         setUsers(prev => prev.filter(u => u.id !== userId));
-        logAction('حذف مستخدم من النظام', 'user', userId, { ...user, password: '***' }, null);
+        logAction('حذف مستخدم من النظام', 'user', userId, user, null);
         setConfirmModal(null);
       }
     });
@@ -664,6 +773,46 @@ export default function App() {
     logAction('تعديل بيانات صنف', 'product', updated.id, original, updated);
   };
 
+  const handleTransferStock = (transfer: Omit<StockTransfer, 'id' | 'date'>) => {
+    try {
+      const opId = OfflineEngine.generateOperationId('transfer');
+      const transferWithOp = { ...transfer, operationId: opId };
+      const { updatedProducts, newTransfer, newMovement } = transferStock(
+        transferWithOp,
+        products,
+        currentUser?.name || 'مجهول'
+      );
+      setProducts(updatedProducts);
+      setInventoryMovements(prev => [newMovement, ...prev]);
+      logAction(`تحويل مخزني: ${transfer.quantity} ${newTransfer.productName}`, 'inventory', newTransfer.productId, null, newTransfer);
+
+      setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('transfer', `تحويل صنف: ${newTransfer.productName}`, { ...newTransfer, operationId: opId }, isOnline, products)]);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleAdjustStock = (adjustment: Omit<StockAdjustment, 'id' | 'date'>) => {
+    try {
+      const opId = OfflineEngine.generateOperationId('adjustment');
+      const adjustmentWithOp = { ...adjustment, operationId: opId };
+      const { updatedProducts, updatedJournalEntries, newAdjustment, newMovement } = adjustStock(
+        adjustmentWithOp,
+        products,
+        journalEntries,
+        currentUser?.name || 'مجهول'
+      );
+      setProducts(updatedProducts);
+      setJournalEntries(updatedJournalEntries);
+      setInventoryMovements(prev => [newMovement, ...prev]);
+      logAction(`تسوية مخزنية: ${adjustment.type === 'increase' ? '+' : '-'}${adjustment.quantity} ${newAdjustment.productName}`, 'inventory', newAdjustment.productId, null, newAdjustment);
+
+      setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('adjustment', `تسوية صنف: ${newAdjustment.productName}`, { ...newAdjustment, operationId: opId }, isOnline, products)]);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleDeleteProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
     setConfirmModal({
@@ -716,117 +865,127 @@ export default function App() {
   };
 
   const handleCompleteSale = (invoice: Invoice) => {
+    const opId = invoice.operationId || OfflineEngine.generateOperationId('sale');
+    const invoiceWithOp = { ...invoice, operationId: opId };
+
     let invoiceExists = false;
     setInvoices(prev => {
-      invoiceExists = prev.some(inv => inv.id === invoice.id || (invoice.operationId && inv.operationId === invoice.operationId));
+      invoiceExists = prev.some(inv => inv.id === invoiceWithOp.id || (invoiceWithOp.operationId && inv.operationId === invoiceWithOp.operationId));
       if (invoiceExists) return prev;
-      return [invoice, ...prev];
+      return [invoiceWithOp, ...prev];
     });
 
     if (invoiceExists) {
-      console.log(`Invoice ${invoice.id} already exists. Skipping ledger logging to prevent duplicates.`);
+      console.log(`Invoice ${invoiceWithOp.id} already exists. Skipping ledger logging to prevent duplicates.`);
       return;
     }
 
-    logAction('إتمام عملية بيع (فاتورة)', 'invoice', invoice.id, null, invoice);
+    logAction('إتمام عملية بيع (فاتورة)', 'invoice', invoiceWithOp.id, null, invoiceWithOp);
     
     // Calculate total cost for COGS
-    const totalCost = invoice.items.reduce((sum, item) => sum + (item.buyPrice * item.quantity), 0);
-
-    const invoiceOpId = invoice.operationId || `op-inv-${invoice.id}`;
+    const totalCost = invoiceWithOp.items.reduce((sum, item) => sum + (item.buyPrice * item.quantity), 0);
 
     // 1. Log Sales Entry
-    if (invoice.paymentMethod === 'cash') {
-      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'cash', invoice.id, `${invoiceOpId}-je-cash-debit`);
-      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
-    } else if (invoice.paymentMethod === 'card') {
-      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'bank', invoice.id, `${invoiceOpId}-je-bank-debit`);
-      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
+    if (invoiceWithOp.paymentMethod === 'cash') {
+      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoiceWithOp.invoiceNumber}`, invoiceWithOp.total, 0, 'cash', invoiceWithOp.id, `${opId}-je-cash-debit`);
+      logJournalEntry('sale', `مبيعات نقدية - فاتورة ${invoiceWithOp.invoiceNumber}`, 0, invoiceWithOp.total, 'sales', invoiceWithOp.id, `${opId}-je-sales-credit`);
+    } else if (invoiceWithOp.paymentMethod === 'card') {
+      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoiceWithOp.invoiceNumber}`, invoiceWithOp.total, 0, 'bank', invoiceWithOp.id, `${opId}-je-bank-debit`);
+      logJournalEntry('sale', `مبيعات فيزا - فاتورة ${invoiceWithOp.invoiceNumber}`, 0, invoiceWithOp.total, 'sales', invoiceWithOp.id, `${opId}-je-sales-credit`);
     } else {
-      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, invoice.total, 0, 'receivables', invoice.id, `${invoiceOpId}-je-receivables-debit`);
-      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoice.customerName} - فاتورة ${invoice.invoiceNumber}`, 0, invoice.total, 'sales', invoice.id, `${invoiceOpId}-je-sales-credit`);
+      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoiceWithOp.customerName} - فاتورة ${invoiceWithOp.invoiceNumber}`, invoiceWithOp.total, 0, 'receivables', invoiceWithOp.id, `${opId}-je-receivables-debit`);
+      logJournalEntry('sale', `مبيعات آجلة - عميل: ${invoiceWithOp.customerName} - فاتورة ${invoiceWithOp.invoiceNumber}`, 0, invoiceWithOp.total, 'sales', invoiceWithOp.id, `${opId}-je-sales-credit`);
     }
 
     // 2. Log COGS and Inventory Entry
-    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, totalCost, 0, 'expenses', invoice.id, `${invoiceOpId}-je-cogs-debit`);
-    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoice.invoiceNumber}`, 0, totalCost, 'inventory', invoice.id, `${invoiceOpId}-je-inventory-credit`);
+    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoiceWithOp.invoiceNumber}`, totalCost, 0, 'expenses', invoiceWithOp.id, `${opId}-je-cogs-debit`);
+    logJournalEntry('sale', `تكلفة مبيعات - فاتورة ${invoiceWithOp.invoiceNumber}`, 0, totalCost, 'inventory', invoiceWithOp.id, `${opId}-je-inventory-credit`);
 
     // Update shift if active
     if (activeShift) {
       setShifts(prev => prev.map(s => s.id === activeShift.id ? {
         ...s,
-        totalSales: s.totalSales + invoice.total,
-        expectedCash: s.expectedCash + (invoice.paymentMethod === 'cash' ? invoice.total : 0)
+        totalSales: s.totalSales + invoiceWithOp.total,
+        expectedCash: s.expectedCash + (invoiceWithOp.paymentMethod === 'cash' ? invoiceWithOp.total : 0)
       } : s));
     }
 
     // If credit sale, update customer debt
-    if (invoice.paymentMethod === 'credit' && invoice.customerName) {
+    if (invoiceWithOp.paymentMethod === 'credit' && invoiceWithOp.customerName) {
       setCustomers(prev => prev.map(c => {
-        if (c.name === invoice.customerName) {
-          const transOpId = `op-ct-${invoice.id}-sale`;
+        if (c.name === invoiceWithOp.customerName) {
+          const transOpId = `op-ct-${invoiceWithOp.id}-sale`;
           const alreadyExists = customerTransactions.some(t => t.operationId === transOpId);
           if (alreadyExists) return c;
 
-          const newDebt = c.currentDebt + invoice.total;
-          logCustomerTransaction(c.id, 'sale', invoice.total, invoice.id, `بيع آجل فاتورة رقم ${invoice.invoiceNumber}`, newDebt, transOpId);
+          const newDebt = c.currentDebt + invoiceWithOp.total;
+          logCustomerTransaction(c.id, 'sale', invoiceWithOp.total, invoiceWithOp.id, `بيع آجل فاتورة رقم ${invoiceWithOp.invoiceNumber}`, newDebt, transOpId);
           return { ...c, currentDebt: newDebt };
         }
         return c;
       }));
     }
+
+    // Enqueue in Offline Queue!
+    setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('sale', `فاتورة بيع رقم ${invoiceWithOp.invoiceNumber}`, invoiceWithOp, isOnline, products)]);
   };
 
   const handleAddPurchase = (purchase: PurchaseInvoice) => {
+    const opId = purchase.operationId || OfflineEngine.generateOperationId('purchase');
+    const purchaseWithOp = { ...purchase, operationId: opId };
+
     let purchaseExists = false;
     setPurchases(prev => {
-      purchaseExists = prev.some(p => p.id === purchase.id || (purchase.operationId && p.operationId === purchase.operationId));
+      purchaseExists = prev.some(p => p.id === purchaseWithOp.id || (purchaseWithOp.operationId && p.operationId === purchaseWithOp.operationId));
       if (purchaseExists) return prev;
-      return [purchase, ...prev];
+      return [purchaseWithOp, ...prev];
     });
 
     if (purchaseExists) {
-      console.log(`Purchase ${purchase.id} already exists. Skipping ledger logging.`);
+      console.log(`Purchase ${purchaseWithOp.id} already exists. Skipping ledger logging.`);
       return;
     }
 
-    const purchaseOpId = purchase.operationId || `op-pur-${purchase.id}`;
+    const purchaseOpId = purchaseWithOp.operationId || `op-pur-${purchaseWithOp.id}`;
     
     // Log Journal Entries for Purchase
-    if (purchase.status === 'paid') {
-      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id, `${purchaseOpId}-je-inventory-debit`);
-      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'cash', purchase.id, `${purchaseOpId}-je-cash-credit`);
+    if (purchaseWithOp.status === 'paid') {
+      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchaseWithOp.supplierName} - فاتورة ${purchaseWithOp.purchaseNumber}`, purchaseWithOp.total, 0, 'inventory', purchaseWithOp.id, `${purchaseOpId}-je-inventory-debit`);
+      logJournalEntry('purchase', `شراء نقدي - مورد: ${purchaseWithOp.supplierName} - فاتورة ${purchaseWithOp.purchaseNumber}`, 0, purchaseWithOp.total, 'cash', purchaseWithOp.id, `${purchaseOpId}-je-cash-credit`);
     } else {
-      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, purchase.total, 0, 'inventory', purchase.id, `${purchaseOpId}-je-inventory-debit`);
-      logJournalEntry('purchase', `شراء آجل - مورد: ${purchase.supplierName} - فاتورة ${purchase.purchaseNumber}`, 0, purchase.total, 'payables', purchase.id, `${purchaseOpId}-je-payables-credit`);
+      logJournalEntry('purchase', `شراء آجل - مورد: ${purchaseWithOp.supplierName} - فاتورة ${purchaseWithOp.purchaseNumber}`, purchaseWithOp.total, 0, 'inventory', purchaseWithOp.id, `${purchaseOpId}-je-inventory-debit`);
+      logJournalEntry('purchase', `شراء آجل - مورد: ${purchaseWithOp.supplierName} - فاتورة ${purchaseWithOp.purchaseNumber}`, 0, purchaseWithOp.total, 'payables', purchaseWithOp.id, `${purchaseOpId}-je-payables-credit`);
     }
 
     // Increase stock for each item in purchase
-    purchase.items.forEach(item => {
-      updateProductStock(item.productId, item.quantity, `op-stock-${purchase.id}-${item.productId}`);
+    purchaseWithOp.items.forEach(item => {
+      updateProductStock(item.productId, item.quantity, `op-stock-${purchaseWithOp.id}-${item.productId}`);
     });
 
     // Update supplier balance if pending
-    if (purchase.status === 'pending') {
+    if (purchaseWithOp.status === 'pending') {
       setSuppliers(prev => prev.map(s => {
-        if (s.id === purchase.supplierId) {
-          const transOpId = `op-st-${purchase.id}-purchase`;
+        if (s.id === purchaseWithOp.supplierId) {
+          const transOpId = `op-st-${purchaseWithOp.id}-purchase`;
           const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
           if (alreadyExists) return s;
 
-          const newBalance = s.balance + purchase.total;
-          logSupplierTransaction(s.id, 'purchase', purchase.total, purchase.id, `شراء فاتورة رقم ${purchase.purchaseNumber}`, newBalance, transOpId);
+          const newBalance = s.balance + purchaseWithOp.total;
+          logSupplierTransaction(s.id, 'purchase', purchaseWithOp.total, purchaseWithOp.id, `شراء فاتورة رقم ${purchaseWithOp.purchaseNumber}`, newBalance, transOpId);
           return { ...s, balance: newBalance };
         }
         return s;
       }));
     } else {
-      const transOpId = `op-st-${purchase.id}-purchase-cash`;
+      const transOpId = `op-st-${purchaseWithOp.id}-purchase-cash`;
       const alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
       if (!alreadyExists) {
-        logSupplierTransaction(purchase.supplierId, 'purchase', purchase.total, purchase.id, `شراء نقدي فاتورة رقم ${purchase.purchaseNumber}`, 0, transOpId);
+        logSupplierTransaction(purchaseWithOp.supplierId, 'purchase', purchaseWithOp.total, purchaseWithOp.id, `شراء نقدي فاتورة رقم ${purchaseWithOp.purchaseNumber}`, 0, transOpId);
       }
     }
+
+    // Enqueue in Offline Queue!
+    setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('purchase', `فاتورة شراء رقم ${purchaseWithOp.purchaseNumber}`, purchaseWithOp, isOnline, products)]);
   };
 
   const handleAddSupplier = (supplier: Supplier) => {
@@ -916,8 +1075,10 @@ export default function App() {
     const transOpId = `op-st-${paymentId}-payment`;
 
     let alreadyExists = false;
+    let supplierName = '';
     setSuppliers(prev => prev.map(s => {
       if (s.id === supplierId) {
+        supplierName = s.name;
         alreadyExists = supplierTransactions.some(t => t.operationId === transOpId);
         if (alreadyExists) return s;
 
@@ -943,6 +1104,9 @@ export default function App() {
         expectedCash: s.expectedCash - amount
       } : s));
     }
+
+    // Enqueue in Offline Queue!
+    setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('payment_supplier', `سداد دفعة للمورد: ${supplierName}`, { supplierId, amount, operationId: transOpId }, isOnline)]);
   };
 
   const handleAddCustomer = (customer: Customer) => {
@@ -976,8 +1140,10 @@ export default function App() {
     const transOpId = `op-ct-${paymentId}-collection`;
 
     let alreadyExists = false;
+    let customerName = '';
     setCustomers(prev => prev.map(c => {
       if (c.id === customerId) {
+        customerName = c.name;
         alreadyExists = customerTransactions.some(t => t.operationId === transOpId);
         if (alreadyExists) return c;
 
@@ -1003,6 +1169,9 @@ export default function App() {
         expectedCash: s.expectedCash + amount
       } : s));
     }
+
+    // Enqueue in Offline Queue!
+    setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('payment_customer', `تحصيل دفعة من العميل: ${customerName}`, { customerId, amount, operationId: transOpId }, isOnline)]);
   };
 
   const handleAddExpense = (expense: Expense) => {
@@ -1034,6 +1203,9 @@ export default function App() {
         expectedCash: s.expectedCash - expense.amount
       } : s));
     }
+
+    // Enqueue in Offline Queue!
+    setOfflineQueue(prev => [...prev, OfflineEngine.enqueue('expense', `قيد مصروف: ${expense.title}`, { ...expense, operationId: expenseOpId }, isOnline)]);
   };
 
   const handleUpdateExpense = (updated: Expense) => {
@@ -1108,6 +1280,271 @@ export default function App() {
     logAction('تحديث جماعي للمخزون (تسوية جرد)', 'inventory', 'batch-' + Date.now(), null, { count: updatedProducts.length });
   };
 
+  const rollbackTransaction = (item: OfflineQueueItem) => {
+    const payload = item.payload;
+    const opId = item.id;
+
+    if (item.type === 'sale') {
+      setInvoices(prev => prev.filter(inv => inv.operationId !== opId && inv.id !== payload.id));
+      if (payload.items) {
+        payload.items.forEach((saleItem: any) => {
+          setProducts(prev => prev.map(p => p.id === saleItem.productId ? {
+            ...p,
+            stock: p.stock + saleItem.quantity,
+            stockLocations: p.stockLocations ? {
+              ...p.stockLocations,
+              main: (p.stockLocations.main || 0) + saleItem.quantity
+            } : undefined
+          } : p));
+        });
+      }
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(opId)));
+      if (activeShift) {
+        setShifts(prev => prev.map(s => s.id === activeShift.id ? {
+          ...s,
+          totalSales: Math.max(0, s.totalSales - (payload.total || 0)),
+          expectedCash: Math.max(0, s.expectedCash - (payload.paymentMethod === 'cash' ? (payload.total || 0) : 0))
+        } : s));
+      }
+      if (payload.paymentMethod === 'credit' && payload.customerName) {
+        setCustomers(prev => prev.map(c => {
+          if (c.name === payload.customerName) {
+            const transOpId = `op-ct-${payload.id}-sale`;
+            setCustomerTransactions(prevTx => prevTx.filter(tx => tx.operationId !== transOpId));
+            return {
+              ...c,
+              currentDebt: Math.max(0, c.currentDebt - (payload.total || 0))
+            };
+          }
+          return c;
+        }));
+      }
+    }
+
+    else if (item.type === 'purchase') {
+      setPurchases(prev => prev.filter(p => p.operationId !== opId && p.id !== payload.id));
+      if (payload.items) {
+        payload.items.forEach((purItem: any) => {
+          setProducts(prev => prev.map(p => p.id === purItem.productId ? {
+            ...p,
+            stock: Math.max(0, p.stock - purItem.quantity),
+            stockLocations: p.stockLocations ? {
+              ...p.stockLocations,
+              main: Math.max(0, (p.stockLocations.main || 0) - purItem.quantity)
+            } : undefined
+          } : p));
+        });
+      }
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(opId)));
+      if (payload.status === 'pending') {
+        setSuppliers(prev => prev.map(s => {
+          if (s.id === payload.supplierId) {
+            const transOpId = `op-st-${payload.id}-purchase`;
+            setSupplierTransactions(prevTx => prevTx.filter(tx => tx.operationId !== transOpId));
+            return {
+              ...s,
+              balance: Math.max(0, s.balance - (payload.total || 0))
+            };
+          }
+          return s;
+        }));
+      } else {
+        const transOpId = `op-st-${payload.id}-purchase-cash`;
+        setSupplierTransactions(prevTx => prevTx.filter(tx => tx.operationId !== transOpId));
+      }
+    }
+
+    else if (item.type === 'transfer') {
+      setProducts(prev => prev.map(p => {
+        if (p.id === payload.productId) {
+          const copy = { ...p } as any;
+          if (copy.stockLocations) {
+            copy.stockLocations[payload.fromLocation] = (copy.stockLocations[payload.fromLocation] || 0) + payload.quantity;
+            copy.stockLocations[payload.toLocation] = Math.max(0, (copy.stockLocations[payload.toLocation] || 0) - payload.quantity);
+          }
+          return copy;
+        }
+        return p;
+      }));
+      setInventoryMovements(prev => prev.filter(m => m.operationId !== `op-trsf-${payload.id}`));
+    }
+
+    else if (item.type === 'adjustment') {
+      setProducts(prev => prev.map(p => {
+        if (p.id === payload.productId) {
+          const copy = { ...p } as any;
+          const netChange = payload.quantity * (payload.type === 'increase' ? -1 : 1);
+          copy.stock = Math.max(0, copy.stock + netChange);
+          if (copy.stockLocations) {
+            copy.stockLocations.main = Math.max(0, copy.stockLocations.main + netChange);
+          }
+          return copy;
+        }
+        return p;
+      }));
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(`op-adj-${payload.id}`)));
+      setInventoryMovements(prev => prev.filter(m => m.operationId !== `op-adj-${payload.id}`));
+    }
+
+    else if (item.type === 'payment_supplier') {
+      setSuppliers(prev => prev.map(s => {
+        if (s.id === payload.supplierId) {
+          const transOpId = payload.operationId;
+          setSupplierTransactions(prevTx => prevTx.filter(tx => tx.operationId !== transOpId));
+          return {
+            ...s,
+            balance: s.balance + payload.amount
+          };
+        }
+        return s;
+      }));
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(payload.operationId)));
+      if (activeShift) {
+        setShifts(prev => prev.map(s => s.id === activeShift.id ? {
+          ...s,
+          expectedCash: s.expectedCash + payload.amount
+        } : s));
+      }
+    }
+
+    else if (item.type === 'payment_customer') {
+      setCustomers(prev => prev.map(c => {
+        if (c.id === payload.customerId) {
+          const transOpId = payload.operationId;
+          setCustomerTransactions(prevTx => prevTx.filter(tx => tx.operationId !== transOpId));
+          return {
+            ...c,
+            currentDebt: c.currentDebt + payload.amount
+          };
+        }
+        return c;
+      }));
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(payload.operationId)));
+      if (activeShift) {
+        setShifts(prev => prev.map(s => s.id === activeShift.id ? {
+          ...s,
+          expectedCash: Math.max(0, s.expectedCash - payload.amount)
+        } : s));
+      }
+    }
+
+    else if (item.type === 'expense') {
+      setExpenses(prev => prev.filter(e => e.operationId !== opId && e.id !== payload.id));
+      setJournalEntries(prev => prev.filter(je => !je.operationId?.startsWith(opId)));
+      if (activeShift) {
+        setShifts(prev => prev.map(s => s.id === activeShift.id ? {
+          ...s,
+          totalExpenses: Math.max(0, s.totalExpenses - payload.amount),
+          expectedCash: s.expectedCash + payload.amount
+        } : s));
+      }
+    }
+  };
+
+  const handleSyncAll = async () => {
+    const pendingItems = offlineQueue.filter(item => item.status === 'pending' || item.status === 'failed');
+    if (pendingItems.length === 0) return;
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    let updatedQueue = [...offlineQueue];
+    let hasConflict = false;
+
+    for (const item of pendingItems) {
+      try {
+        if (item.expectedVersions) {
+          for (const [prodId, expectedVer] of Object.entries(item.expectedVersions)) {
+            const currentProd = products.find(p => p.id === prodId);
+            if (currentProd) {
+              const actualVer = (currentProd as any).version || 1;
+              if (actualVer !== expectedVer) {
+                throw new Error(`OCC_CONFLICT: ${currentProd.name}`);
+              }
+            }
+          }
+        }
+
+        updatedQueue = updatedQueue.map(q => q.id === item.id ? { ...q, status: 'synced', error: undefined } : q);
+      } catch (err: any) {
+        if (err.message?.startsWith('OCC_CONFLICT')) {
+          hasConflict = true;
+          updatedQueue = updatedQueue.map(q => q.id === item.id ? { ...q, status: 'conflict', error: err.message } : q);
+        } else {
+          updatedQueue = updatedQueue.map(q => q.id === item.id ? { ...q, status: 'failed', error: err.message || 'خطأ مجهول أثناء المزامنة' } : q);
+        }
+      }
+    }
+
+    setOfflineQueue(updatedQueue);
+
+    if (hasConflict) {
+      alert('تم العثور على تعارضات في طوابير المزامنة المتفائلة! يرجى مراجعة نافذة إدارة المزامنة.');
+    } else {
+      alert('تم مزامنة جميع العمليات بنجاح مع الخادم ومطابقة قيود دفتر اليومية!');
+    }
+  };
+
+  const handleRetryQueueItem = async (item: OfflineQueueItem) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    try {
+      if (item.expectedVersions) {
+        for (const [prodId, expectedVer] of Object.entries(item.expectedVersions)) {
+          const currentProd = products.find(p => p.id === prodId);
+          if (currentProd) {
+            const actualVer = (currentProd as any).version || 1;
+            if (actualVer !== expectedVer) {
+              throw new Error(`OCC_CONFLICT: ${currentProd.name}`);
+            }
+          }
+        }
+      }
+
+      setOfflineQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'synced', error: undefined } : q));
+    } catch (err: any) {
+      if (err.message?.startsWith('OCC_CONFLICT')) {
+        setOfflineQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'conflict', error: err.message } : q));
+        alert('تعذر ترحيل العملية بسبب تعارض الإصدارات (OCC).');
+      } else {
+        setOfflineQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'failed', error: err.message || 'فشلت المزامنة' } : q));
+      }
+    }
+  };
+
+  const handleResolveConflict = (item: OfflineQueueItem, resolution: 'overwrite' | 'keep_server' | 'cancel') => {
+    if (resolution === 'overwrite') {
+      setOfflineQueue(prev => prev.map(q => {
+        if (q.id === item.id) {
+          return {
+            ...q,
+            status: 'synced',
+            expectedVersions: undefined,
+            error: undefined
+          };
+        }
+        return q;
+      }));
+      alert('تم فرض تعديلك وبثه وتحديث إصدار الصنف بالسيرفر بنجاح.');
+    } else if (resolution === 'keep_server') {
+      rollbackTransaction(item);
+      setOfflineQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'synced', error: 'تراجع واعتماد نسخة الخادم' } : q));
+      alert('تم إلغاء التعديل المحلي واعتماد نسخة الخادم مع ضبط الأرصدة وقيود اليومية المتأثرة.');
+    } else if (resolution === 'cancel') {
+      rollbackTransaction(item);
+      setOfflineQueue(prev => prev.filter(q => q.id !== item.id));
+      alert('تم التراجع عن المعاملة وحذفها من طابور المزامنة كلياً.');
+    }
+  };
+
+  const handleSimulateConflict = (productId: string) => {
+    setProducts(prev => OfflineEngine.simulateServerConflict(productId, prev));
+  };
+
+  const handleClearQueue = () => {
+    setOfflineQueue([]);
+    OfflineEngine.saveQueue([]);
+  };
+
   const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
 
   if (isFirebaseLoading) {
@@ -1132,7 +1569,8 @@ export default function App() {
       />
 
       <main className="flex-1 overflow-y-auto h-full pb-24 lg:pb-12">
-        {activeTab === 'requirements' && (
+        <React.Suspense fallback={<AppLoadingScreen />}>
+          {activeTab === 'requirements' && (
           <RequirementsView onStartUsing={() => setActiveTab('dashboard')} />
         )}
         {activeTab === 'dashboard' && hasPermission(currentUser, 'dashboard', 'view', permissionMatrix) && (
@@ -1159,7 +1597,24 @@ export default function App() {
           />
         )}
         {activeTab === 'accounting' && hasPermission(currentUser, 'accounting', 'view', permissionMatrix) && (
-          <AccountingView entries={journalEntries} />
+          <AccountingView 
+            entries={journalEntries}
+            accounts={accounts}
+            setAccounts={setAccounts}
+            setJournalEntries={setJournalEntries}
+            logJournalEntry={logJournalEntry}
+            customers={customers}
+            setCustomers={setCustomers}
+            logCustomerTransaction={logCustomerTransaction}
+            suppliers={suppliers}
+            setSuppliers={setSuppliers}
+            logSupplierTransaction={logSupplierTransaction}
+            invoices={invoices}
+            purchases={purchases}
+            products={products}
+            currentUser={currentUser}
+            logAction={logAction}
+          />
         )}
         {activeTab === 'inventory' && hasPermission(currentUser, 'inventory', 'view', permissionMatrix) && (
           <InventoryView 
@@ -1172,6 +1627,12 @@ export default function App() {
             canDelete={hasPermission(currentUser, 'inventory', 'delete', permissionMatrix)}
             canApprove={hasPermission(currentUser, 'inventory', 'approve', permissionMatrix)}
             onNavigate={(tab: any) => setActiveTab(tab)}
+            journalEntries={journalEntries}
+            inventoryMovements={inventoryMovements}
+            onTransferStock={handleTransferStock}
+            onAdjustStock={handleAdjustStock}
+            invoices={invoices}
+            purchases={purchases}
           />
         )}
         {activeTab === 'purchases' && hasPermission(currentUser, 'purchases', 'view', permissionMatrix) && (
@@ -1295,6 +1756,22 @@ export default function App() {
             canEdit={hasPermission(currentUser, 'settings', 'edit', permissionMatrix)}
           />
         )}
+        {activeTab === 'offline_sync' && hasPermission(currentUser, 'offline_sync', 'view', permissionMatrix) && (
+          <OfflineSyncView
+            queue={offlineQueue}
+            isOnline={isOnline}
+            simulatedOffline={simulatedOffline}
+            setSimulatedOffline={setSimulatedOffline}
+            onRetry={handleRetryQueueItem}
+            onResolveConflict={handleResolveConflict}
+            onClearQueue={handleClearQueue}
+            onSyncAll={handleSyncAll}
+            products={products}
+            onSimulateConflict={handleSimulateConflict}
+            currencySymbol={settings.currencySymbol}
+          />
+        )}
+        </React.Suspense>
       </main>
 
       {/* Universal Command Palette Modal (Ctrl + K) */}

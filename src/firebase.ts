@@ -8,6 +8,7 @@ import {
   setDoc 
 } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCGRSIVpdSm2DmURN3QcD24IakMhUoPHTU",
@@ -29,6 +30,22 @@ export const db = initializeFirestore(app, {
 }, "ai-studio-dea18671-a3ef-4da0-b6bb-cc16f1aba787");
 
 export const auth = getAuth(app);
+
+// Safe App Check Initialization
+if (typeof window !== 'undefined') {
+  try {
+    // Set debug token for seamless staging/local testing in sandbox preview
+    (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider('6Ldf_fUqAAAAANg60h-k69D4K6vT6vT-gN-562_z'),
+      isTokenAutoRefreshEnabled: true
+    });
+    console.log("Firebase App Check initialized with App Check Debug Provider.");
+  } catch (err) {
+    console.warn("App Check not initialized or ReCaptcha token not available:", err);
+  }
+}
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({

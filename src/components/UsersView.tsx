@@ -57,7 +57,6 @@ export const UsersView: React.FC<UsersViewProps> = ({
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<UserRole>('cashier');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   // Matrix edit indicator
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -68,7 +67,6 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername('');
     setRole('cashier');
     setEmail('');
-    setPassword('');
     setShowModal(true);
   };
 
@@ -78,13 +76,12 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername(user.username);
     setRole(user.role);
     setEmail(user.email || '');
-    setPassword(user.password || '');
     setShowModal(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !username) return;
+    if (!name || !username || !email) return;
 
     if (editingUser) {
       onUpdateUser({
@@ -92,8 +89,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
         name,
         username,
         role,
-        email: email || undefined,
-        password: password || undefined
+        email: email || undefined
       });
     } else {
       const newUser: User = {
@@ -101,8 +97,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
         name,
         username,
         role,
-        email: email || undefined,
-        password: password || undefined
+        email: email || undefined
       };
       onAddUser(newUser);
     }
@@ -113,7 +108,6 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setUsername('');
     setRole('cashier');
     setEmail('');
-    setPassword('');
   };
 
   // Toggle permission in matrix
@@ -276,9 +270,6 @@ export const UsersView: React.FC<UsersViewProps> = ({
                     {ROLE_ARABIC_NAMES[user.role] || user.role}
                   </span>
                 </div>
-                <button className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="تغيير كلمة المرور">
-                  <Key className="w-3.5 h-3.5" />
-                </button>
               </div>
             </div>
           ))}
@@ -448,28 +439,17 @@ export const UsersView: React.FC<UsersViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">كلمة المرور / رمز PIN للدخول المباشر *</label>
-                  <input
-                    type="text"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة مرور أو رمز PIN"
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 font-bold"
-                  />
-                  <p className="text-[9px] text-slate-400 mt-1 font-bold">يتم استخدامها للدخول المباشر والسريع للموظف دون الحاجة لحساب Google.</p>
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">بريد Google الإلكتروني للمزامنة مع Firebase Auth (اختياري)</label>
+                  <label className="block text-slate-600 font-bold mb-1">بريد Google الإلكتروني للمزامنة مع Firebase Auth *</label>
                   <input
                     type="email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="مثال: user@gmail.com"
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 font-bold font-mono text-left"
                     dir="ltr"
                   />
-                  <p className="text-[9px] text-slate-400 mt-1 font-bold">عند تحديد البريد، سيتمكن الموظف من تسجيل الدخول ببريد Google الخاص به.</p>
+                  <p className="text-[9px] text-indigo-600 mt-1 font-bold">يجب إدخال بريد Google صحيح لكي يتمكن الموظف من تسجيل الدخول الآمن للنظام عبر Google SSO.</p>
                 </div>
                 <div>
                   <label className="block text-slate-600 font-bold mb-1">الدور الوظيفي وصلاحيات العمل الفورية</label>

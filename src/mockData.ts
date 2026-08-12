@@ -212,3 +212,17 @@ export const INITIAL_AUDIT_SESSIONS: StockAuditSession[] = [
   }
 ];
 
+export const INITIAL_ACCOUNTS = [
+  { code: 'cash', name: 'الخزينة (نقدي)', type: 'asset', description: 'النقدية المتوفرة بالخزينة الرئيسية للمحل', isSystem: true },
+  { code: 'bank', name: 'البنك (فيزا)', type: 'asset', description: 'الأرصدة المتوفرة في الحسابات البنكية والفيزا والشبكة', isSystem: true },
+  { code: 'receivables', name: 'المدينون (العملاء)', type: 'asset', description: 'الحسابات المدينة والمستحقات على عملاء الآجل', isSystem: true },
+  { code: 'inventory', name: 'مخزون السلع والبضائع', type: 'asset', description: 'قيمة بضاعة آخر المدة بالمخازن بالتكلفة', isSystem: true },
+  { code: 'payables', name: 'الدائنون (الموردون)', type: 'liability', description: 'المديونية المستحقة للموردين مقابل مشتريات الآجل', isSystem: true },
+  { code: 'tax_payable', name: 'ضريبة القيمة المضافة المستحقة (14%)', type: 'liability', description: 'حساب ضريبة المبيعات المستحقة لمصلحة الضرائب', isSystem: true },
+  { code: 'capital', name: 'رأس المال المبدئي', type: 'equity', description: 'حقوق الملكية ورأس مال التأسيس للمشروع', isSystem: true },
+  { code: 'sales', name: 'إيراد المبيعات', type: 'revenue', description: 'الإيرادات المحققة من بيع السلع والمنتجات', isSystem: true },
+  { code: 'purchases', name: 'المشتريات والسلع المستلمة', type: 'expense', description: 'المشتريات الكلية من البضائع التي تدخل المخازن', isSystem: true },
+  { code: 'expenses', name: 'المصروفات وتكلفة المبيعات', type: 'expense', description: 'المصروفات التشغيلية والعمومية وتكلفة البضاعة المباعة', isSystem: true }
+];
+
+

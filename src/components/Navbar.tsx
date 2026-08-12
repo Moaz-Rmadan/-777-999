@@ -26,7 +26,9 @@ import {
   X,
   Layers,
   Wallet,
-  ShieldAlert
+  ShieldAlert,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -66,7 +68,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(() => {
+    const simOffline = typeof localStorage !== 'undefined' ? localStorage.getItem('sm_simulated_offline') === 'true' : false;
+    return typeof navigator !== 'undefined' ? (navigator.onLine && !simOffline) : true;
+  });
 
   // Expanded submenus state (key: groupId, value: boolean)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -78,13 +83,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   });
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const updateStatus = () => {
+      const simOffline = localStorage.getItem('sm_simulated_offline') === 'true';
+      setIsOnline(navigator.onLine && !simOffline);
+    };
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    
+    // Periodically sync status in case simulator is clicked
+    const interval = setInterval(updateStatus, 1000);
+
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', updateStatus);
+      window.removeEventListener('offline', updateStatus);
+      clearInterval(interval);
     };
   }, []);
 
@@ -142,6 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'users', label: 'الموظفين والصلاحيات', icon: <UserCog className="w-4 h-4 text-slate-600" /> },
         { id: 'audit_log', label: 'سجل الرقابة', icon: <ShieldAlert className="w-4 h-4 text-slate-400" /> },
         { id: 'requirements', label: 'المتطلبات', icon: <ClipboardList className="w-4 h-4 text-slate-500" /> },
+        { id: 'offline_sync', label: 'طابور المعاملات دون اتصال', icon: <WifiOff className="w-4 h-4 text-rose-500" /> },
         { id: 'settings', label: 'الإعدادات العامة', icon: <Settings className="w-4 h-4 text-emerald-600" /> },
       ]
     }
@@ -215,7 +229,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="w-9 h-9 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-md">
                     <Store className="w-5 h-5" />
                   </div>
-                  <h1 className="font-black text-slate-900 text-sm">{settings.storeName || 'سوبر ماركت برو'}</h1>
+                  <div>
+                    <h1 className="font-black text-slate-900 text-sm leading-tight">{settings.storeName || 'سوبر ماركت برو'}</h1>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className="text-[10px] text-slate-400 font-semibold">{isOnline ? 'متصل' : 'أوفلاين'}</span>
+                    </div>
+                  </div>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400">
                   <X className="w-5 h-5" />
@@ -296,17 +316,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Brand Header */}
         <div className={`p-4 border-b border-slate-100 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-emerald-900/10 shrink-0 font-black">
+          <div className="relative w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-emerald-900/10 shrink-0 font-black">
             <Store className="w-5 h-5" />
+            {isCollapsed && (
+              <span className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            )}
           </div>
           {!isCollapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
               <h1 className="text-xs font-black text-slate-900 leading-tight truncate">
                 {settings.storeName || 'سوبر ماركت برو'}
               </h1>
-              <span className="text-[9px] text-emerald-600 font-bold block truncate">
-                نظام إدارة ERP الكاشير
-              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-[9px] text-slate-400 font-bold block truncate">
+                  {isOnline ? 'متصل بالشبكة' : 'الوضع أوفلاين'}
+                </span>
+              </div>
             </motion.div>
           )}
         </div>

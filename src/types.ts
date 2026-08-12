@@ -248,6 +248,7 @@ export type ModuleName =
   | 'accounting'
   | 'hr'
   | 'requirements'
+  | 'offline_sync'
   | 'settings';
 
 export type RolePermissionMatrix = Record<UserRole, Record<ModuleName, RolePermissionSet>>;
@@ -316,6 +317,7 @@ export type ActiveTab =
   | 'stock_audit'
   | 'accounting'
   | 'hr'
+  | 'offline_sync'
   | 'settings';
 
 export interface InstallmentPlan {
@@ -411,4 +413,27 @@ export interface StockAuditSession {
   notes?: string;
   operationId?: string;
 }
+
+export interface Account {
+  code: string; // e.g. '10100' or 'cash'
+  name: string; // e.g. 'الخزينة (نقدي)'
+  type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+  balance?: number; // Optional, can be computed dynamically
+  description?: string;
+  isSystem?: boolean; // system-locked accounts cannot be deleted
+}
+
+export interface OfflineQueueItem {
+  id: string; // Operation ID
+  timestamp: string;
+  type: 'sale' | 'purchase' | 'transfer' | 'adjustment' | 'payment_supplier' | 'payment_customer' | 'expense' | 'shift_open' | 'shift_close' | 'audit_session';
+  description: string;
+  payload: any;
+  status: 'pending' | 'synced' | 'failed' | 'conflict';
+  error?: string;
+  retryCount: number;
+  expectedVersions?: Record<string, number>; // For Optimistic OCC conflict detection
+}
+
+
 
